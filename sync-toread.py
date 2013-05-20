@@ -35,6 +35,7 @@ class ExportFile(object):
   update_metadata = False
   write_opf = False
 
+
 def get_titles():
   title_pattern = re.compile(r'^(\d+)\s+(.*)$')
   titles = {}
