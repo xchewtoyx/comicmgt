@@ -18,7 +18,7 @@ def lines(todofile):
 def issues(todofile):
   seen = defaultdict(int)
   for line, title, issue in lines(todofile):
-    if issue and seen[title] and issue != seen[title]+1:
+    if issue and seen[title] and abs(issue - seen[title]) > 1:
       yield line, seen[title]
     seen[title] = issue
 
