@@ -4,11 +4,26 @@ import os
 import sys
 import re
 from collections import defaultdict
+import args
+ARGS=None
+args.add_argument('--noreboots', '-r', action='store_true',
+                  help='ignore series reboots')
+args.add_argument('--nodups', '-d', action='store_true',
+                  help='ignore duplicates')
+args.add_argument('files', nargs='*', default=[sys.stdin], 
+                  help='Files to merge')
 
-COMIC_RE = re.compile(r'^\d+ +([^#]+)#([\d.]+)')
+
+COMIC_RE = re.compile(r'^\d+ +([^#]+)#([^:\s]+)')
+
+def inputfile(todofile):
+  if hasattr(todofile, 'readline'):
+    return todofile
+  else:
+    return open(todofile)
 
 def lines(todofile):
-  with open(todofile) as todolines:
+  with inputfile(todofile) as todolines:
     for line in todolines:
       title_match = COMIC_RE.match(line)
       if title_match:
@@ -18,17 +33,19 @@ def lines(todofile):
 def issues(todofile):
   seen = defaultdict(int)
   for line, title, issue in lines(todofile):
-    if issue and issue != '0':
+    if issue and issue.isdigit() and issue != '0':
       if seen[title]:
         delta = abs(float(issue) - float(seen[title]))
-        if delta == 0 or delta > 1:
+        if ((delta == 0 and not ARGS.nodups) or 
+            (delta > 1 and not (int(issue) == 1 and ARGS.noreboots))):
           yield line, seen[title]
       seen[title] = issue
 
-def main(files):
-  for todofile in files:
+def main():
+  for todofile in ARGS.files:
     for issue, lastissue in issues(todofile):
       print "%s (last seen %s)" % (issue, lastissue)
 
 if __name__ == '__main__':
-  main(sys.argv[1:])
+  ARGS = args.parse_args()
+  main()
