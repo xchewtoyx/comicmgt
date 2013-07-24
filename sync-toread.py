@@ -29,8 +29,8 @@ class ExportFile(object):
   replace_whitespace = False
   save_cover = False
   single_dir = True
-  template = '{title} ({id})'
-  timefmt = None
+  template = '{pubdate} {title} ({id})'
+  timefmt = '%Y%m%d'
   to_lowercase = False
   update_metadata = False
   write_opf = False
