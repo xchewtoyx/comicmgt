@@ -10,6 +10,8 @@ args.add_argument('--noreboots', '-r', action='store_true',
                   help='ignore series reboots')
 args.add_argument('--nodups', '-d', action='store_true',
                   help='ignore duplicates')
+args.add_argument('--maxdelta', '-m', type=int, default=50,
+                  help='Assume larger jumps are intentional')
 args.add_argument('files', nargs='*', default=[sys.stdin], 
                   help='Files to merge')
 
@@ -37,7 +39,8 @@ def issues(todofile):
       if seen[title]:
         delta = abs(float(issue) - float(seen[title]))
         if ((delta == 0 and not ARGS.nodups) or 
-            (delta > 1 and not (int(issue) == 1 and ARGS.noreboots))):
+            (delta > 1 and delta < ARGS.maxdelta and not (
+              int(issue) == 1 and ARGS.noreboots))):
           yield line, seen[title]
       seen[title] = issue
 
