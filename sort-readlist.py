@@ -45,8 +45,8 @@ def get_issue_details(infile):
     mi = db.get_metadata(issue, index_is_id=True)
     if mi:
       logging.debug('Found issue %s(%d)[%s]', title, issue, mi.pubdate)
-      # Return tuple with fields in the order to sort by
-      yield mi.pubdate, title, issue
+      # Return tuple with first entry being a tuple of the sort keys
+      yield (mi.pubdate, mi.title_sort), issue, title
     else:
       logging.warn('Unable to find issue in database: %s(%d)', title, issue)
 
@@ -74,8 +74,8 @@ def main():
   outfile = ARGS.outfile
   if isinstance(outfile, basestring):
     outfile = open(outfile, 'w')
-  for pubdate, title, idx in issues:
-    outfile.write('%d %s\n' % (idx, title))
+  for __, issue, title in issues:
+    outfile.write('%d %s\n' % (issue, title))
   if outfile is sys.stdout:
     outfile.flush()
   else:
