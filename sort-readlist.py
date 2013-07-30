@@ -31,7 +31,7 @@ ARGS={}
 
 class StreamClassifier(object):
   def __init__(self):
-    self.streams = ['catchup', 'marvel', 'dc', 'valiant']
+    self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
     self.catchup_volumes = ['18436', '18519', '18520', '18521']
 
   def stream_catchup(self, mi):
@@ -47,6 +47,9 @@ class StreamClassifier(object):
   def stream_valiant(self, mi):
     return mi.publisher in ['Valiant']
 
+  def stream_rebellion(self, mi):
+    return mi.publisher in ['Rebellion']
+
   def classify(self, mi):
     for stream in self.streams:
       classifier = getattr(self, 'stream_'+stream)
@@ -60,7 +63,7 @@ def get_issues(infile):
     issueid = ISSUE_PATTERN.match(line)
     if issueid:
       issue_id, issue_name = issueid.groups()
-      logging.debug('Found issue "%s"(%d) [%s]', issue_id, issue_name)
+      logging.debug('Found issue "%s"(%s)', issue_name, issue_id)
       yield int(issue_id), issue_name
     else:
       logging.warn('Unable to parse line: %s', line)
@@ -90,25 +93,29 @@ def get_streams(infile):
 
 def merged_streams(infile):
   streams = get_streams(infile)
-  items = sum([len(streams[stream]) for stream in streams])
+  lengths = [len(streams[stream]) for stream in streams]
+  items = sum(lengths)
+  max_stream = max(lengths)
+  logging.debug('Total list items: %d', items)
   weight = {}
 
   for stream in streams:
-    weight[stream] = len(streams[stream]) / (1.0 * items)
+    weight[stream] = len(streams[stream]) / (1.0 * max_stream)
+    logging.debug('Stream length[%s]: %d', stream, len(streams[stream]))
+    logging.debug('Stream weight[%s]: %0.4f', stream, weight[stream])
 
-  for i in range(items):
-    collected = defaultdict(float)
+  collected = defaultdict(float)
+  while True:
+    done = True
     for stream in streams:
       if streams[stream]:
+        done = False
         collected[stream] += weight[stream]
-        if collected >= 1.0:
+        if collected[stream] >= 1.0:
           yield streams[stream].pop(0)
           collected[stream] -= 1.0
-
-  for stream in streams:
-    if len(streams[stream]):
-      for item in streams[stream]:
-        yield item
+    if done:
+      break
 
 def main():
   logger = logging.getLogger()
