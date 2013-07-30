@@ -5,6 +5,8 @@ import os
 import re
 import sys
 
+from collections import OrderedDict
+
 import calibre_config
 from calibre.library.database2 import LibraryDatabase2
 from calibre.library.save_to_disk import save_to_disk
@@ -37,7 +39,7 @@ class ExportFile(object):
 
 def get_titles():
   title_pattern = re.compile(r'^(\d+)\s+(.*)$')
-  titles = {}
+  titles = OrderedDict()
   toread = open(ARGS.toread, 'r')
   for title in toread:
     title_match = title_pattern.match(title)
@@ -68,14 +70,14 @@ def remove_old_files(files, toread):
       os.remove(os.path.join(ARGS.syncdir, filename))
 
 
-def remove_synced(files, toread):
+def rename_synced(files, toread):
   for calibre_id, filename in files.items():
     if calibre_id in toread:
       logging.debug('Already have title %s(%s)', filename, calibre_id)
       del toread[calibre_id]
 
 
-def sync_files(titles):
+def export_files(titles, have_files):
   def export_progress(calibre_id, title, failed, traceback):
     if failed:
       logging.error('Unable to export %s(%s): %s',
@@ -86,13 +88,29 @@ def sync_files(titles):
 
   db = LibraryDatabase2(prefs['library_path'])
   opts = ExportFile()
-  ids = [int(calibre_id) for calibre_id in titles.keys()]
+  ids = [int(id) for id in list(set(titles.keys())-set(have_files.keys()))]
   logging.info('Exporting %d titles...', len(ids))
   logging.debug('%s', repr(titles.keys()))
   failures = save_to_disk(
     db, ids, ARGS.syncdir, opts=opts, callback=export_progress)
   if failures:
     logging.warn('Unable to export files: %s', repr(failures))
+
+def rename_files(files, titles):
+  oldindex = re.compile(r'(\d{4}) ')
+  filetype = re.compile(r'.*\.(cb[rz])$')
+  index = 0
+  for title in titles:
+    idx = oldindex.match(files[title])
+    if idx:
+      index = int(idx.group(1))+1
+      continue
+    file_ext = filetype.match(files[title]).group(1)
+    newname = '%04d %s (%s).%s' % (
+      index, titles[title], title, file_ext)
+    os.rename(os.path.join(ARGS.syncdir, files[title]),
+              os.path.join(ARGS.syncdir, newname))
+    index += 1
 
 def main():
   logger = logging.getLogger()
@@ -101,8 +119,9 @@ def main():
   toread = get_titles()
   have_files = get_files()
   remove_old_files(have_files, toread)
-  remove_synced(have_files, toread)
-  sync_files(toread)
+  export_files(toread, have_files)
+  have_files = get_files()
+  rename_files(have_files, toread)
 
 if __name__ == '__main__':
   ARGS = args.parse_args()
