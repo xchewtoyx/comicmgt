@@ -9,4 +9,4 @@ calibredb list -s identifiers:comicvine:false -f title -w 800 | \
         s/2000AD/2000 AD/;             # Fixup common mis-naming
         s/# 0/#/;                      # Fix space between # and number
         s/ \+$//;                      # Remove trailing space
-        s/^\([0-9]\+\) \(.*\)/fem.sh \1 "\2"/'
+        s/^\([0-9]\+\) \(.*\)/fem.sh \1 t:"\2"/'
