@@ -6,6 +6,8 @@ import subprocess
 import sys
 import os
 
+from collections import defaultdict
+
 import calibre_config
 from calibre.library.database2 import LibraryDatabase2
 from calibre.utils.config import prefs
@@ -27,13 +29,38 @@ args.add_argument('--verbose', '-v', help='Enable verbose logging',
 
 ARGS={}
 
+class StreamClassifier(object):
+  def __init__(self):
+    self.streams = ['catchup', 'marvel', 'dc', 'valiant']
+    self.catchup_volumes = ['18436', '18519', '18520', '18521']
+
+  def stream_catchup(self, mi):
+    volume = mi.identifiers.get('comicvine-volume')
+    return volume and volume in self.catchup_volumes
+      
+  def stream_marvel(self, mi):
+    return mi.publisher in ['Marvel', 'Max']
+
+  def stream_dc(self, mi):
+    return mi.publisher in ['DC', 'DC Comics']
+
+  def stream_valiant(self, mi):
+    return mi.publisher in ['Valiant']
+
+  def classify(self, mi):
+    for stream in self.streams:
+      classifier = getattr(self, 'stream_'+stream)
+      if classifier and classifier(mi):
+        return stream
+    return None
+
 def get_issues(infile):
   'Find issues listed in "id title" format.'
   for line in infile:
     issueid = ISSUE_PATTERN.match(line)
     if issueid:
       issue_id, issue_name = issueid.groups()
-      logging.debug('Found issue "%s"(%d)', issue_id, issue_name)
+      logging.debug('Found issue "%s"(%d) [%s]', issue_id, issue_name)
       yield int(issue_id), issue_name
     else:
       logging.warn('Unable to parse line: %s', line)
@@ -41,14 +68,47 @@ def get_issues(infile):
 def get_issue_details(infile):
   'Look up issue details in Calibre library.'
   db = LibraryDatabase2(prefs['library_path'])
+  classifier = StreamClassifier()
   for issue, title in get_issues(infile):
     mi = db.get_metadata(issue, index_is_id=True)
     if mi:
-      logging.debug('Found issue %s(%d)[%s]', title, issue, mi.pubdate)
+      stream = classifier.classify(mi)
+      logging.debug('Found issue %s(%d) [%s] [%s]', 
+                    title, issue, stream, mi.pubdate)
       # Return tuple with first entry being a tuple of the sort keys
-      yield (mi.pubdate, mi.title_sort), issue, title
+      yield (mi.pubdate, mi.title_sort), issue, title, stream
     else:
       logging.warn('Unable to find issue in database: %s(%d)', title, issue)
+
+def get_streams(infile):
+  streams = defaultdict(list)
+  for sortkey, issue, title, stream in get_issue_details(infile):
+    streams[stream].append((sortkey, issue, title))
+  for stream in streams:
+    streams[stream].sort()
+  return streams
+
+def merged_streams(infile):
+  streams = get_streams(infile)
+  items = sum([len(streams[stream]) for stream in streams])
+  weight = {}
+
+  for stream in streams:
+    weight[stream] = len(streams[stream]) / (1.0 * items)
+
+  for i in range(items):
+    collected = defaultdict(float)
+    for stream in streams:
+      if streams[stream]:
+        collected[stream] += weight[stream]
+        if collected >= 1.0:
+          yield streams[stream].pop(0)
+          collected[stream] -= 1.0
+
+  for stream in streams:
+    if len(streams[stream]):
+      for item in streams[stream]:
+        yield item
 
 def main():
   logger = logging.getLogger()
@@ -66,7 +126,7 @@ def main():
   infile = ARGS.infile
   if isinstance(infile, basestring):
     infile = open(infile, 'r')
-  issues = sorted(get_issue_details(infile))
+  issues = list(merged_streams(infile))
   if infile is not sys.stdin:
     infile.close()
     
