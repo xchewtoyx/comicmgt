@@ -32,7 +32,7 @@ ARGS={}
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
-    self.catchup_volumes = ['18436', '18519', '18520', '18521']
+    self.catchup_volumes = ['18436', '18519', '18520', '18521', '18053']
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
