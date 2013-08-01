@@ -134,9 +134,10 @@ def merged_streams(infile):
     # A weight of less than 1/10 is probably a good indication that
     # there are not enough issues for the stream to be effective
     if weight[stream] < 0.1:
-      logging.warn('Stream %s has weight of %0.4f which will result in  '
+      logging.warn('Stream %s has weight of %0.4f which will result in '
                    'significant gaps between issues.  Consider removing '
-                   'this stream or merging it with another.')
+                   'this stream or merging it with another.', stream, 
+                   weight[stream])
     logging.debug('Stream length[%s]: %d', stream, len(streams[stream]))
     logging.debug('Stream weight[%s]: %0.4f', stream, weight[stream])
 
