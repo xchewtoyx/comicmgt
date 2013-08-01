@@ -37,17 +37,19 @@ ARGS={}
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
+    self.catchup_seen = set()
     self.catchup_streams={}
-    if ARGS.catchup_volumes:
-      for stream in ARGS.catchup_volumes:
-        if ':' in ARGS.catchup_volumes:
-          stream, volumes = ARGS.catchup_volumes.split(':')
+    if ARGS.catchup_stream:
+      for stream_spec in ARGS.catchup_stream:
+        if ':' in stream_spec:
+          stream, volumes = catchup_stream.split(':')
           for volume in volumes.split(','):
             if volume in self.catchup_streams:
               raise ValueError('Duplicate volume detected in '
                                'catchup_streams: %s' % volume)
             self.catchup_streams[volume] = stream
-    self.catchup_seen = set()
+        else:
+          raise ValueError('Invalid stream definition: %s', stream_spec)
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
