@@ -27,47 +27,64 @@ args.add_argument('--outfile', '-o', help='path to output file',
 args.add_argument('--verbose', '-v', help='Enable verbose logging',
                   action='store_true')
 args.add_argument(
-  '--catchup_volumes', '-c', 
-  help='Comma separated list of volume ids to put in the "catchup" stream.')
+  '--catchup_stream', '-c', action='append', 
+  help='Comma separated list of volume ids to put in the "catchup" stream.'
+       'e.g. --catchup_stream ss:18436,18519,18520 to create a stream named '
+       'ss with volumes ')
 
 ARGS={}
 
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
-    self.catchup_volumes = set(ARGS.catchup_volumes.split(','))
+    self.catchup_streams={}
+    if ARGS.catchup_volumes:
+      for stream in ARGS.catchup_volumes:
+        if ':' in ARGS.catchup_volumes:
+          stream, volumes = ARGS.catchup_volumes.split(':')
+          for volume in volumes.split(','):
+            if volume in self.catchup_streams:
+              raise ValueError('Duplicate volume detected in '
+                               'catchup_streams: %s' % volume)
+            self.catchup_streams[volume] = stream
     self.catchup_seen = set()
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
-    if volume and volume in self.catchup_volumes:
+    if volume and volume in self.catchup_streams:
       self.catchup_seen.add(volume)
-      return volume
+      return self.catchup_streams[]
       
   def stream_marvel(self, mi):
-    return mi.publisher in ['Marvel', 'Max']
+    if mi.publisher in ['Marvel', 'Max']:
+      return 'marvel'
 
   def stream_dc(self, mi):
-    return mi.publisher in ['DC', 'DC Comics']
+    if mi.publisher in ['DC', 'DC Comics']:
+      return 'dc'
 
   def stream_valiant(self, mi):
-    return mi.publisher in ['Valiant']
+    if mi.publisher in ['Valiant']:
+      return 'valiant'
 
   def stream_rebellion(self, mi):
-    return mi.publisher in ['Rebellion']
+    if mi.publisher in ['Rebellion']:
+      return 'rebellion'
 
   def classify(self, mi):
     for stream in self.streams:
       classifier = getattr(self, 'stream_'+stream)
-      if classifier and classifier(mi):
-        return stream
+      if classifier:
+        issue_stream = classifier(mi)
+        if issue_stream:
+          return issue_stream
     return None
 
   def __del__(self):
-    unseen_volumes = self.catchup_volumes - self.catchup_seen
+    unseen_volumes = set(self.catchup_streams.keys()) - self.catchup_seen
     if unseen_volumes:
-      logging.warn('The following catchup volumes were not seen: %r', 
-                   unseen_volumes)
+      logging.warn('The following catchup volumes were not seen: %s', 
+                   ','.join(unseen_volumes))
 
 def get_issues(infile):
   'Find issues listed in "id title" format.'
