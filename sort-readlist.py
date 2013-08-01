@@ -26,13 +26,16 @@ args.add_argument('--outfile', '-o', help='path to output file',
                   default=sys.stdout)
 args.add_argument('--verbose', '-v', help='Enable verbose logging',
                   action='store_true')
+args.add_argument(
+  '--catchup_volumes', '-c', 
+  help='Comma separated list of volume ids to put in the "catchup" stream.')
 
 ARGS={}
 
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
-    self.catchup_volumes = ['18436', '18519', '18520', '18521', '18053']
+    self.catchup_volumes = ARGS.catchup_volumes.split(',')
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
