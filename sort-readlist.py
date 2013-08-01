@@ -35,7 +35,9 @@ ARGS={}
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
-    self.catchup_volumes = set(ARGS.catchup_volumes.split(','))
+    self.catchup_volumes=set()
+    if ARGS.catchup_volumes:
+      self.catchup_volumes.update(ARGS.catchup_volumes.split(','))
     self.catchup_seen = set()
 
   def stream_catchup(self, mi):
