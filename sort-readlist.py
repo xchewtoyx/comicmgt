@@ -35,11 +35,14 @@ ARGS={}
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
-    self.catchup_volumes = ARGS.catchup_volumes.split(',')
+    self.catchup_volumes = set(ARGS.catchup_volumes.split(','))
+    self.catchup_seen = set()
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
-    return volume and volume in self.catchup_volumes
+    if volume and volume in self.catchup_volumes:
+      self.catchup_seen.add(volume)
+      return volume
       
   def stream_marvel(self, mi):
     return mi.publisher in ['Marvel', 'Max']
@@ -59,6 +62,12 @@ class StreamClassifier(object):
       if classifier and classifier(mi):
         return stream
     return None
+
+  def __del__(self):
+    unseen_volumes = self.catchup_volumes - self.catchup_seen
+    if unseen_volumes:
+      logging.warn('The following catchup volumes were not seen: %r', 
+                   unseen_volumes)
 
 def get_issues(infile):
   'Find issues listed in "id title" format.'
