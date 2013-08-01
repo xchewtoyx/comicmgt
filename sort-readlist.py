@@ -68,8 +68,8 @@ class StreamClassifier(object):
   def __del__(self):
     unseen_volumes = self.catchup_volumes - self.catchup_seen
     if unseen_volumes:
-      logging.warn('The following catchup volumes were not seen: %r', 
-                   unseen_volumes)
+      logging.warn('The following catchup volumes were not seen: %s', 
+                   ','.join(unseen_volumes))
 
 def get_issues(infile):
   'Find issues listed in "id title" format.'
