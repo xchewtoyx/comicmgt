@@ -37,23 +37,25 @@ ARGS={}
 class StreamClassifier(object):
   def __init__(self):
     self.streams = ['catchup', 'marvel', 'dc', 'valiant', 'rebellion']
+    self.catchup_seen = set()
     self.catchup_streams={}
-    if ARGS.catchup_volumes:
-      for stream in ARGS.catchup_volumes:
-        if ':' in ARGS.catchup_volumes:
-          stream, volumes = ARGS.catchup_volumes.split(':')
+    if ARGS.catchup_stream:
+      for stream_spec in ARGS.catchup_stream:
+        if ':' in stream_spec:
+          stream, volumes = stream_spec.split(':')
           for volume in volumes.split(','):
             if volume in self.catchup_streams:
               raise ValueError('Duplicate volume detected in '
                                'catchup_streams: %s' % volume)
             self.catchup_streams[volume] = stream
-    self.catchup_seen = set()
+        else:
+          raise ValueError('Invalid stream definition: %s', stream_spec)
 
   def stream_catchup(self, mi):
     volume = mi.identifiers.get('comicvine-volume')
     if volume and volume in self.catchup_streams:
       self.catchup_seen.add(volume)
-      return self.catchup_streams[]
+      return self.catchup_streams[volume]
       
   def stream_marvel(self, mi):
     if mi.publisher in ['Marvel', 'Max']:
@@ -130,6 +132,13 @@ def merged_streams(infile):
 
   for stream in streams:
     weight[stream] = len(streams[stream]) / (1.0 * max_stream)
+    # A weight of less than 1/10 is probably a good indication that
+    # there are not enough issues for the stream to be effective
+    if weight[stream] < 0.1:
+      logging.warn('Stream %s has weight of %0.4f which will result in '
+                   'significant gaps between issues.  Consider removing '
+                   'this stream or merging it with another.', stream, 
+                   weight[stream])
     logging.debug('Stream length[%s]: %d', stream, len(streams[stream]))
     logging.debug('Stream weight[%s]: %0.4f', stream, weight[stream])
 
