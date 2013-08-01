@@ -42,7 +42,7 @@ class StreamClassifier(object):
     if ARGS.catchup_stream:
       for stream_spec in ARGS.catchup_stream:
         if ':' in stream_spec:
-          stream, volumes = catchup_stream.split(':')
+          stream, volumes = stream_spec.split(':')
           for volume in volumes.split(','):
             if volume in self.catchup_streams:
               raise ValueError('Duplicate volume detected in '
