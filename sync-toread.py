@@ -1,16 +1,27 @@
 #!/usr/bin/python
+# pylint: disable=C0103
+"""Sync items on toread list from calibre database into local folder.
 
+Processes a toread file and exports the files for the first listed
+titles listed into a local folder.
+
+The toread file shold be in the format:
+
+{comicvine_id} {title}
+
+The content of the title field are not used.  This format is
+compatible with todo.txt.
+"""
 import logging
 import os
 import re
-import sys
 
 from collections import OrderedDict
 
-import calibre_config
-from calibre.library.database2 import LibraryDatabase2
-from calibre.library.save_to_disk import save_to_disk
-from calibre.utils.config import prefs
+import calibre_config                                  # pylint: disable=W0611
+from calibre.library.database2 import LibraryDatabase2 # pylint: disable=F0401
+from calibre.library.save_to_disk import save_to_disk  # pylint: disable=F0401
+from calibre.utils.config import prefs                 # pylint: disable=F0401
 
 import args
 
@@ -25,6 +36,8 @@ args.add_argument('--verbose', '-v', help='Verbose logging',
                   default=False, action='store_true')
 
 class ExportFile(object):
+  # This class is a pure namespace so ignore the fact there are no methods
+  # pylint: disable=R0903
   'Settings to use when exporting files'
   asciiize = True
   formats = 'all'
@@ -38,6 +51,7 @@ class ExportFile(object):
   write_opf = False
 
 def get_titles():
+  'Read in toread list and get the first n entries'
   title_pattern = re.compile(r'^(\d+)\s+(.*)$')
   titles = OrderedDict()
   toread = open(ARGS.toread, 'r')
@@ -88,7 +102,7 @@ def export_files(titles, have_files):
 
   db = LibraryDatabase2(prefs['library_path'])
   opts = ExportFile()
-  ids = [int(id) for id in list(set(titles.keys())-set(have_files.keys()))]
+  ids = [int(idx) for idx in list(set(titles.keys())-set(have_files.keys()))]
   logging.info('Exporting %d titles...', len(ids))
   logging.debug('%s', repr(titles.keys()))
   failures = save_to_disk(
@@ -122,11 +136,13 @@ def rename_files(files, titles):
     try:
       os.rename(os.path.join(ARGS.syncdir, files[title]),
                 os.path.join(ARGS.syncdir, newname))
-    except OSError as e:
-      logging.error('Error renaming file %s -> %s: %r', files[title], newname, e)
+    except OSError as err:
+      logging.error('Error renaming file %s -> %s: %s', files[title], 
+                    newname, err)
     seen_idx.append(index)
 
 def main():
+  'Read the toread list'
   logger = logging.getLogger()
   if ARGS.verbose:
     logger.setLevel(logging.DEBUG)
