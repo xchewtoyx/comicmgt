@@ -4,7 +4,6 @@ import logging
 import re
 import subprocess
 import sys
-import os
 
 from collections import defaultdict
 
@@ -14,7 +13,7 @@ from calibre.utils.config import prefs
 
 import args
 
-ISSUE_PATTERN = re.compile('(\d+) (.*)$')
+ISSUE_PATTERN = re.compile(r'(\d+) (.*)$')
 
 args.add_argument('--archive', '-a', help='Archive file before sorting',
                   action='store_true')
