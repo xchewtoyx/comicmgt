@@ -100,17 +100,31 @@ def rename_files(files, titles):
   oldindex = re.compile(r'(\d{4}) ')
   filetype = re.compile(r'.*\.(cb[rz])$')
   index = 0
+  seen_idx = []
   for title in titles:
+    index += 1
     idx = oldindex.match(files[title])
     if idx:
-      index = int(idx.group(1))+1
-      continue
+      file_index = int(idx.group(1))
+      if file_index >= index and file_index not in seen_idx:
+        logging.debug('File has suitable index, ignoring %s (i:%d, s:%r)', 
+                      files[title], index, seen_idx)
+        seen_idx.append(file_index)
+        index = file_index
+        continue
+      logging.debug('File has unsuitable index, renaming %s (i:%d, s:%r)', 
+                    files[title], index, seen_idx)
     file_ext = filetype.match(files[title]).group(1)
     newname = '%04d %s (%s).%s' % (
       index, titles[title], title, file_ext)
-    os.rename(os.path.join(ARGS.syncdir, files[title]),
-              os.path.join(ARGS.syncdir, newname))
-    index += 1
+    newname = re.sub(r'[\'/"!]', r'_', newname)
+    logging.debug('Renaming %s to %s', files[title], newname)
+    try:
+      os.rename(os.path.join(ARGS.syncdir, files[title]),
+                os.path.join(ARGS.syncdir, newname))
+    except OSError as e:
+      logging.error('Error renaming file %s -> %s: %r', files[title], newname, e)
+    seen_idx.append(index)
 
 def main():
   logger = logging.getLogger()
