@@ -117,9 +117,13 @@ def rename_files(files, titles):
     file_ext = filetype.match(files[title]).group(1)
     newname = '%04d %s (%s).%s' % (
       index, titles[title], title, file_ext)
+    newname = re.sub(r'[\'/"!]', r'_', newname)
     logging.debug('Renaming %s to %s', files[title], newname)
-    os.rename(os.path.join(ARGS.syncdir, files[title]),
-              os.path.join(ARGS.syncdir, newname))
+    try:
+      os.rename(os.path.join(ARGS.syncdir, files[title]),
+                os.path.join(ARGS.syncdir, newname))
+    except OSError as e:
+      logging.error('Error renaming file %s -> %s: %r', files[title], newname, e)
     seen_idx.append(index)
 
 def main():
