@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Copyright 2013 Russell Heilling
 
 import sys
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright 2013 Russell Heilling
 
 count=$1
 tmpfile=$(mktemp)

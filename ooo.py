@@ -1,10 +1,12 @@
 #!/usr/bin/python
+# Copyright 2013 Russell Heilling
 
 import os
 import sys
 import re
 from collections import defaultdict
 import args
+
 ARGS=None
 args.add_argument('--noreboots', '-r', action='store_true',
                   help='ignore series reboots')

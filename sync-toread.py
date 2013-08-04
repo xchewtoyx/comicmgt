@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Copyright 2013 Russell Heilling
 # pylint: disable=C0103,R0903
 """Sync items on toread list from calibre database into local folder.
 

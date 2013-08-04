@@ -1,4 +1,5 @@
 #!/bin/sh
+# Copyright 2013 Russell Heilling
 
 calibredb list -s identifiers:comicvine:false -f title -w 800 | \
     grep -v -e ^id -e ^$ | \
