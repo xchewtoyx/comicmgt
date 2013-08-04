@@ -182,15 +182,14 @@ def rename_files(syncdir, toread):
   oldindex = re.compile(r'(\d{4}) ')
   index = 0
   seen_idx = []
-  for title in wanted:
+  for title in toread:
     if title not in syncdir:
       # Entry has not been synced, end of loop
       break
     index += 1
-    idex_match = oldindex.match(syncdir[title])
+    index_match = oldindex.match(syncdir[title])
     if index_match:
       file_index = int(index_match.group(1))
-      
       if file_index >= index and file_index not in seen_idx:
         logging.debug('File has suitable index, ignoring %s (i:%d, s:%r)', 
                       syncdir[title], index, seen_idx)
