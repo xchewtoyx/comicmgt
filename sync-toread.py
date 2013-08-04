@@ -177,16 +177,20 @@ class ExportDirectory(dict):
     return list(set(wanted) - set(self.keys()))
 
 
-def rename_files(wanted, syncdir, toread):
+def rename_files(syncdir, toread):
   'Rename files so that the filenames sort in todolist order.'
   oldindex = re.compile(r'(\d{4}) ')
   index = 0
   seen_idx = []
   for title in wanted:
+    if title not in syncdir:
+      # Entry has not been synced, end of loop
+      break
     index += 1
-    idx = oldindex.match(syncdir[title])
-    if idx:
-      file_index = int(idx.group(1))
+    idex_match = oldindex.match(syncdir[title])
+    if index_match:
+      file_index = int(index_match.group(1))
+      
       if file_index >= index and file_index not in seen_idx:
         logging.debug('File has suitable index, ignoring %s (i:%d, s:%r)', 
                       syncdir[title], index, seen_idx)
@@ -211,13 +215,22 @@ def main():
   logger = logging.getLogger()
   if ARGS.verbose:
     logger.setLevel(logging.DEBUG)
+
   toread = ToRead(ARGS.toread)
   syncdir = ExportDirectory(ARGS.syncdir)
   calibredb = CalibreDatabase()
+
+  # Grab the ids of the first count entries
   wanted = toread.keys()[:ARGS.count]
+
+  # Remove any files not in the list
   syncdir.keep_files(wanted)
+
+  # Export any files not already present
   calibredb.export_files(wanted, syncdir)
-  rename_files(wanted, syncdir, toread)
+
+  # Rename files so they sort in reading list order
+  rename_files(syncdir, toread)
 
 if __name__ == '__main__':
   ARGS = args.parse_args()
