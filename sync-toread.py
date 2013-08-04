@@ -1,18 +1,27 @@
 #!/usr/bin/python
 # pylint: disable=C0103,R0903
-"""Sync items on toread list from calibre database into local folder."""
+"""Sync items on toread list from calibre database into local folder.
 
+Processes a toread file and exports the files for the first listed
+titles listed into a local folder.
+
+The toread file shold be in the format:
+
+{comicvine_id} {title}
+
+The content of the title field are not used.  This format is
+compatible with todo.txt.
+"""
 import logging
 import os
 import re
-import sys
 
 from collections import OrderedDict
 
-import calibre_config
-from calibre.library.database2 import LibraryDatabase2
-from calibre.library.save_to_disk import save_to_disk
-from calibre.utils.config import prefs
+import calibre_config                                  # pylint: disable=W0611
+from calibre.library.database2 import LibraryDatabase2 # pylint: disable=F0401
+from calibre.library.save_to_disk import save_to_disk  # pylint: disable=F0401
+from calibre.utils.config import prefs                 # pylint: disable=F0401
 
 import args
 
@@ -26,11 +35,9 @@ args.add_argument('--syncdir', '-d', help='Directory to sync issues to',
 args.add_argument('--verbose', '-v', help='Verbose logging',
                   default=False, action='store_true')
 
-
 class FormatChangeError(Exception):
   'Exception raised when attempt made to change format during rename'
   pass
-
 
 class ToRead(OrderedDict):
   'Read matching lines from the toread file into an ordered dict'
@@ -175,15 +182,14 @@ def rename_files(syncdir, toread):
   oldindex = re.compile(r'(\d{4}) ')
   index = 0
   seen_idx = []
-  for title in wanted:
+  for title in toread:
     if title not in syncdir:
       # Entry has not been synced, end of loop
       break
     index += 1
-    idex_match = oldindex.match(syncdir[title])
+    index_match = oldindex.match(syncdir[title])
     if index_match:
       file_index = int(index_match.group(1))
-      
       if file_index >= index and file_index not in seen_idx:
         logging.debug('File has suitable index, ignoring %s (i:%d, s:%r)', 
                       syncdir[title], index, seen_idx)
@@ -204,6 +210,7 @@ def rename_files(syncdir, toread):
     seen_idx.append(index)
 
 def main():
+  'Read the toread list'
   logger = logging.getLogger()
   if ARGS.verbose:
     logger.setLevel(logging.DEBUG)
