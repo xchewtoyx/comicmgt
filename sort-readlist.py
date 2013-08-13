@@ -71,6 +71,7 @@ class StreamClassifier(object):
       for stream_spec in ARGS.catchup_stream:
         if ':' in stream_spec:
           stream, volumes = stream_spec.split(':')
+          stream = stream.tolower()
           for volume in volumes.split(','):
             if volume in self.volumes:
               raise ValueError('Duplicate volume detected in '
@@ -140,7 +141,7 @@ def get_streams(infile):
     if error:
       # Keep errors in relative order by using length of errors list
       # as sort key
-      streams['errors'].append(((len(streams['errors']),), error))
+      streams['ERRORS'].append(((len(streams['ERRORS']),), error))
       continue
     sortkey, issue, title, stream = issue_details
     streams[stream].append((sortkey, issue, title))
@@ -165,6 +166,9 @@ def calculate_weights(streams):
   # streams)' issues
   loop_issues = sum(1/weight[stream] for stream in streams)
   for stream in streams:
+    if stream == 'ERRORS':
+      # No nead for interval warning for errors
+      continue
     # A stream contributing less that 1 in 20 issues is probably a
     # good indication that there are not enough issues for the stream
     # to be effective
@@ -188,12 +192,12 @@ def merged_streams(infile):
   weight = calculate_weights(streams)
 
   # Pass errors through first
-  if 'errors' in streams:
-    for sortkey, error in streams['errors']:
+  if 'ERRORS' in streams:
+    for __, error in streams['ERRORS']:
       logging.info('Problem handling line: %s\n'
                    'Passing through to output unmodified', error)
       yield error.line
-    del streams['errors']
+    del streams['ERRORS']
 
   while True:
     done = True
@@ -205,7 +209,7 @@ def merged_streams(infile):
         done = False
         collected[stream] += weight[stream]
         if collected[stream] >= 1.0:
-          sortkey, issue, title = streams[stream].pop(0)
+          __, issue, title = streams[stream].pop(0)
           yield '%d %s' % (issue, title)
           collected[stream] -= 1.0
     if done:
