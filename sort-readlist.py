@@ -135,7 +135,8 @@ def get_issue_details(infile):
   'Look up issue details in Calibre library.'
   db = LibraryDatabase2(prefs['library_path'])
   classifier = StreamClassifier()
-  classifier.setup_streams(ARGS.catchup_stream, ARGS.publisher)
+  classifier.add_streams(catchup_streams=ARGS.catchup_stream, 
+                         publisher_streams=ARGS.publisher)
   for issue_data, error in get_issues(infile):
     if error:
       yield issue_data, error
