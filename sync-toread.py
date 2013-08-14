@@ -33,8 +33,7 @@ args.add_argument('--toread', '-t', help='File containing issues to read',
                   type=bytes, default=None, required=True)
 args.add_argument('--syncdir', '-d', help='Directory to sync issues to',
                   type=bytes, default=None, required=True)
-args.add_argument('--verbose', '-v', help='Verbose logging',
-                  default=False, action='store_true')
+args.add_argument('--verbose', '-v', help='Verbose logging.', action='count')
 
 class FormatChangeError(Exception):
   'Exception raised when attempt made to change format during rename'
@@ -214,7 +213,10 @@ def main():
   'Read the toread list'
   logger = logging.getLogger()
   if ARGS.verbose:
-    logger.setLevel(logging.DEBUG)
+    if ARGS.verbose == 1:
+      logger.setLevel(logging.INFO)
+    else:
+      logger.setLevel(logging.DEBUG)
 
   toread = ToRead(ARGS.toread)
   syncdir = ExportDirectory(ARGS.syncdir)
