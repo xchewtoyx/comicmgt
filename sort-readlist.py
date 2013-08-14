@@ -39,7 +39,6 @@ args.add_argument(
   help=('Comma separated list of volume ids to put in the "catchup" stream.'
         'e.g. --catchup_stream ss:18436,18519,18520 to create a stream named '
         'ss with volumes'))
-
 ARGS = args.ARGS
 
 class LineError(Exception):
@@ -271,5 +270,5 @@ def main():
     outfile.close()
 
 if __name__ == '__main__':
-  ARGS = args.parse_args()
+  args.parse_args()
   main()

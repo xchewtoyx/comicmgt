@@ -26,7 +26,6 @@ from calibre.utils.config import prefs                 # pylint: disable=F0401
 
 import args
 
-ARGS = None
 args.add_argument('--count', '-c', help='Number of issues to sync',
                   type=int, default='50')
 args.add_argument('--toread', '-t', help='File containing issues to read',
@@ -34,6 +33,7 @@ args.add_argument('--toread', '-t', help='File containing issues to read',
 args.add_argument('--syncdir', '-d', help='Directory to sync issues to',
                   type=bytes, default=None, required=True)
 args.add_argument('--verbose', '-v', help='Verbose logging.', action='count')
+ARGS = args.ARGS
 
 class FormatChangeError(Exception):
   'Exception raised when attempt made to change format during rename'
@@ -235,5 +235,5 @@ def main():
   rename_files(syncdir, toread)
 
 if __name__ == '__main__':
-  ARGS = args.parse_args()
+  args.parse_args()
   main()

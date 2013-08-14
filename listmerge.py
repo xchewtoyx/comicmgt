@@ -4,10 +4,11 @@
 import sys
 
 import args
-ARGS=None
+
 args.add_argument('--rate', '-r', default='10', type=float,
                   help='Ratio of lines to take from the first vs second file')
 args.add_argument('files', nargs=2, help='Files to merge')
+ARGS = args.ARGS
 
 def read_lines(filename, rate):
   with open(filename, 'r') as infile:
@@ -41,5 +42,5 @@ def main():
     sys.stdout.writelines(lines)
 
 if __name__ == '__main__':
-  ARGS=args.parse_args()
+  args.parse_args()
   main()
