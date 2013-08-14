@@ -93,6 +93,7 @@ class StreamClassifier(object):
     volume = mi.identifiers.get('comicvine-volume')
     publisher = mi.publisher
     if volume in self.volumes:
+      self.volumes_seen.add(volume)
       return self.volumes[volume]
     if publisher in self.publishers:
       return self.publishers[publisher]
@@ -160,11 +161,11 @@ def calculate_weights(streams):
 
   logging.debug('Total list items: %d', items)
   # try and calculate interval in each loop, each stream will
-  # contribute 1/weight issues to progress It requires 1/weight loops
+  # contribute weight issues to progress It requires 1/weight loops
   # for a stream to contribute a whole issue so each stream will
-  # contribute an issue every '1/weight * sum(1/weight[s] for s in
+  # contribute an issue every '1/weight * sum(weight[s] for s in
   # streams)' issues
-  loop_issues = sum(1/weight[stream] for stream in streams)
+  loop_issues = sum(weight[stream] for stream in streams)
   for stream in streams:
     if stream == 'ERRORS':
       # No nead for interval warning for errors
@@ -182,7 +183,7 @@ def calculate_weights(streams):
                    'another.', stream, weight[stream], interval)
     logging.debug('Stream length[%s]: %d', stream, len(streams[stream]))
     logging.debug('Stream weight[%s]: %0.4f', stream, weight[stream])
-    return weight
+  return weight
 
 
 def merged_streams(infile):
@@ -243,7 +244,7 @@ def main():
   outfile = ARGS.outfile
   if isinstance(outfile, basestring):
     outfile = open(outfile, 'w')
-  outfile.write('\n'.join(lines))
+  outfile.write('\n'.join(lines) + '\n')
   if outfile is sys.stdout:
     outfile.flush()
   else:
