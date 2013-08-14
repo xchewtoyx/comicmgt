@@ -53,7 +53,7 @@ class ToRead(OrderedDict):
           logging.debug('Found title %s(%s)', title_match.group(2), 
                         title_match.group(1))
         else:
-          logging.warn('Unmatching toread line: %s', title)
+          logging.info('Unmatching toread line: %s', title)
 
 
 class CalibreDatabase(LibraryDatabase2):
