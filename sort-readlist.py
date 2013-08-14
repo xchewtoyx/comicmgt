@@ -10,7 +10,7 @@ import sys
 from collections import defaultdict
 
 # Calibre modules cannot be loaded outside the calibre environment so disable
-# errors caused by failing imports
+# style errors caused by failing imports
 import calibre_config                                  #pylint: disable=W0611
 from calibre.library.database2 import LibraryDatabase2 #pylint: disable=F0401
 from calibre.utils.config import prefs                 #pylint: disable=F0401
@@ -43,6 +43,7 @@ args.add_argument(
 ARGS = args.ARGS
 
 class LineError(Exception):
+  'Exception caused by a line which doesn\'t parse.'
   def __init__(self, line):
     self.line = line
     super(LineError, self).__init__()
@@ -51,6 +52,7 @@ class LineError(Exception):
     return 'Unable to parse line: %s' % self.line
     
 class DatabaseError(Exception):
+  'Exception caused by an issue which isn\'t in the database.'
   def __init__(self, issue, title):
     self.issue = issue
     self.title = title
@@ -62,34 +64,46 @@ class DatabaseError(Exception):
       self.title, self.issue)
 
 class StreamClassifier(object):
+  'Setup streams and provide interface to classify individual issues.'
   def __init__(self):
     self.volumes = {}
     self.volumes_seen = set()
     self.publishers = {}
 
-    if ARGS.catchup_stream:
-      for stream_spec in ARGS.catchup_stream:
-        if ':' in stream_spec:
-          stream, volumes = stream_spec.split(':')
-          stream = stream.lower()
-          for volume in volumes.split(','):
-            if volume in self.volumes:
-              raise ValueError('Duplicate volume detected in '
-                               'catchup volumes: %s' % volume)
-            self.volumes[volume] = stream
-        else:
-          raise ValueError('Invalid stream definition: %s', stream_spec)
-    if ARGS.publisher:
-      for stream_spec in ARGS.publisher:
-        publishers = stream_spec.split(',')
-        stream = publishers[0].lower()
-        for publisher in publishers:
-          if publisher in self.publishers:
-            raise ValueError('Duplicate publisher detected in '
-                             'publishers: %s' % publisher)
-          self.publishers[publisher] = stream
+  def _add_catchup_streams(self, stream_specs):
+    'Add any catchup streams to the classifier.'
+    for stream_spec in stream_specs:
+      if ':' in stream_spec:
+        stream, volumes = stream_spec.split(':')
+        stream = stream.lower()
+        for volume in volumes.split(','):
+          if volume in self.volumes:
+            raise ValueError('Duplicate volume detected in '
+                             'catchup volumes: %s' % volume)
+          self.volumes[volume] = stream
+      else:
+        raise ValueError('Invalid stream definition: %s', stream_spec)
+
+  def _add_publisher_streams(self, publisher_specs):
+    'Add any publisher streams to the classifier'
+    for stream_spec in publisher_specs:
+      publishers = stream_spec.split(',')
+      stream = publishers[0].lower()
+      for publisher in publishers:
+        if publisher in self.publishers:
+          raise ValueError('Duplicate publisher detected in '
+                           'publishers: %s' % publisher)
+        self.publishers[publisher] = stream
+
+  def add_streams(self, catchup_streams=None, publisher_streams=None):
+    'Add defined streams to the classifier.'
+    if catchup_streams:
+      self._add_catchup_streams(catchup_streams)
+    if publisher_streams:
+      self._add_publisher_streams(publisher_streams)
 
   def classify(self, mi):
+    'Identify which classifier stream matches an issue.'
     volume = mi.identifiers.get('comicvine-volume')
     publisher = mi.publisher
     if volume in self.volumes:
@@ -117,10 +131,12 @@ def get_issues(infile):
     else:
       yield None, LineError(line)
 
+
 def get_issue_details(infile):
   'Look up issue details in Calibre library.'
   db = LibraryDatabase2(prefs['library_path'])
   classifier = StreamClassifier()
+  classifier.setup_streams(ARGS.catchup_stream, ARGS.publisher)
   for issue_data, error in get_issues(infile):
     if error:
       yield issue_data, error
@@ -136,7 +152,9 @@ def get_issue_details(infile):
     else:
       yield None, DatabaseError(issue, title)
 
+
 def get_streams(infile):
+  'Return the sorted streams after classification.'
   streams = defaultdict(list)
   for issue_details, error in get_issue_details(infile):
     if error:
@@ -187,6 +205,7 @@ def calculate_weights(streams):
 
 
 def merged_streams(infile):
+  'Merge the sorted streams according to relative weights.'
   streams = get_streams(infile)
   collected = defaultdict(float)
 
@@ -217,6 +236,7 @@ def merged_streams(infile):
       break
 
 def main():
+  'Setup environment and run classification.'
   logger = logging.getLogger()
   if ARGS.verbose:
     if ARGS.verbose >= 2:
