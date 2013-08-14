@@ -160,29 +160,29 @@ def calculate_weights(streams):
             for stream in streams}
 
   logging.debug('Total list items: %d', items)
-  # try and calculate interval in each loop, each stream will
+  # Try and calculate interval.  With each loop, each stream will
   # contribute weight issues to progress It requires 1/weight loops
   # for a stream to contribute a whole issue so each stream will
-  # contribute an issue every '1/weight * sum(weight[s] for s in
-  # streams)' issues
-  loop_issues = sum(weight[stream] for stream in streams)
+  # contribute an issue approximately every 'sum(weights)/weight'
+  # issues
+  loop_issues = sum(weight.values())
   for stream in streams:
     if stream == 'ERRORS':
       # No nead for interval warning for errors
       continue
-    # A stream contributing less that 1 in 20 issues is probably a
-    # good indication that there are not enough issues for the stream
-    # to be effective
     if not weight[stream]:
       raise ValueError('Stream has weight of zero.  Will never yield issues.')
     interval = loop_issues / weight[stream]
+    logging.info('Stream %s (l/w/i): (%d/%0.4f/%d', 
+                  stream, len(streams[stream]), weight[stream], interval)
+    # A stream contributing less that 1 in 20 issues is probably a
+    # good indication that there are not enough issues for the stream
+    # to be effective
     if interval > 20:
       logging.info('Stream %s has weight of %0.4f which will result in '
                    'significant gaps between issues (approx %0.1f issues). '
                    'Consider removing this stream or merging it with '
                    'another.', stream, weight[stream], interval)
-    logging.debug('Stream length[%s]: %d', stream, len(streams[stream]))
-    logging.debug('Stream weight[%s]: %0.4f', stream, weight[stream])
   return weight
 
 
