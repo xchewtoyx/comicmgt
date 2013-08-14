@@ -7,7 +7,6 @@ import re
 from collections import defaultdict
 import args
 
-ARGS=None
 args.add_argument('--noreboots', '-r', action='store_true',
                   help='ignore series reboots')
 args.add_argument('--nodups', '-d', action='store_true',
@@ -16,6 +15,7 @@ args.add_argument('--maxdelta', '-m', type=int, default=50,
                   help='Assume larger jumps are intentional')
 args.add_argument('files', nargs='*', default=[sys.stdin], 
                   help='Files to merge')
+ARGS = args.ARGS
 
 
 COMIC_RE = re.compile(r'^\d+ +([^#]+)#([^:\s]+)')
@@ -52,5 +52,5 @@ def main():
       print "%s (last seen %s)" % (issue, lastissue)
 
 if __name__ == '__main__':
-  ARGS = args.parse_args()
+  args.parse_args()
   main()
