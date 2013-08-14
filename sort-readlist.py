@@ -173,7 +173,7 @@ def calculate_weights(streams):
     if not weight[stream]:
       raise ValueError('Stream has weight of zero.  Will never yield issues.')
     interval = loop_issues / weight[stream]
-    logging.info('Stream %s (l/w/i): (%d/%0.4f/%d', 
+    logging.info('Stream %s (l/w/i): (%d/%0.4f/%d)', 
                   stream, len(streams[stream]), weight[stream], interval)
     # A stream contributing less that 1 in 20 issues is probably a
     # good indication that there are not enough issues for the stream
