@@ -60,19 +60,22 @@ class IssueStream(BaseStream):
   def append(self, metadata):
     'Add an issue to the stream.'
     super(IssueStream, self).append(metadata)
-    self.issue_count += 1
+    type(self).issue_count += 1
     if len(self) > self.max_stream_size:
-      self.max_stream_size = len(self)
+      type(self).max_stream_size = len(self)
+      logging.debug('New heavy hitter %s (%d)', self.name, len(self))
 
   @property
   def interval(self):
     'How many issues will there be between entries when merged?'
-    return 1.0 * self.issue_count / len(self)
+    return self.issue_count / (1.0 * len(self))
 
   @property
   def weight(self):
     'The relative weight of the stream.'
-    return 1.0 * len(self) / self.max_stream_size
+    weight = len(self) / (1.0 * self.max_stream_size)
+    return weight
+
 
 
 class StreamClassifier(object):
