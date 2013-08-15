@@ -22,8 +22,9 @@ class CalibreDB(LibraryDatabase2):
     'Retrieve an issue by calibre id'
     metadata = self.get_metadata(issueid, index_is_id=True)
     if metadata:
-      logging.debug('Found issue %s(%d) [%s]', 
-                    metadata.title, issueid, metadata.pubdate)
+      logging.debug('Found issue %s (%d) [%s/%s]', 
+                    metadata.title, issueid, metadata.pubdate, 
+                    metadata.publisher)
       return metadata
     return None
 
@@ -36,7 +37,8 @@ if __name__ == '__main__':
   for issue in sys.argv[1:]:
     issue_data = calibredb.issue(int(issue))
     if issue_data:
-      print 'Found issue %s(%s) [%s]' % (
-        issue_data.title, issue, issue_data.pubdate)
+      print 'Found issue %s(%s) [%s/%s] {%s}' % (
+        issue_data.title, issue, issue_data.pubdate, issue_data.publisher,
+	issue_data.identifiers)
     else:
       print 'No issue found with id %s' % issue
