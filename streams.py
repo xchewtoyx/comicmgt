@@ -45,7 +45,7 @@ class BaseStream(list):
   'A Stream.'
   def __init__(self, name):
     super(BaseStream, self).__init__()
-    self.name = name
+    self.name = name.replace(' ', '_')<
 
 
 class ErrorStream(BaseStream):
@@ -186,8 +186,6 @@ class StreamClassifier(object):
           raise ValueError('Weight for stream %s is zero.  '
                            'Will never yield issues.' % stream.name)
         if yielded[stream.name] < len(stream):
-          logging.debug('Stream %s: %d/%d', stream.name, yielded[stream.name],
-                        len(stream))
           done = False
           collected[stream.name] += stream.weight
           if collected[stream.name] - yielded[stream.name] >= 1.0:
