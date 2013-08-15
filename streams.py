@@ -7,8 +7,7 @@ import re
 from collections import defaultdict
 
 import args
-
-ISSUE_PATTERN = re.compile(r'(\d+) (.*)$')
+from calibredb import CalibreDB
 
 args.add_argument(
   '--publisher', '-p', action='append',
@@ -22,13 +21,73 @@ args.add_argument(
         'ss with volumes'))
 ARGS = args.ARGS
 
+class LineError(Exception):
+  'Exception caused by a line which doesn\'t parse.'
+  def __init__(self, line):
+    super(LineError, self).__init__()
+    self.line = line
+
+  def __str__(self):
+    return 'Unable to parse line: %s' % self.line
+    
+
+class DatabaseError(Exception):
+  'Exception caused by an issue which isn\'t in the database.'
+  def __init__(self, line):
+    super(DatabaseError, self).__init__()
+    self.line = line
+
+  def __str__(self):
+    return 'Unable to find issue in database: %s' % self.line
+
+
+class BaseStream(list):
+  'A Stream.'
+  def __init__(self, name):
+    super(BaseStream, self).__init__()
+    self.name = name
+
+
+class ErrorStream(BaseStream):
+  'A class to hold any entries for which there are problems'
+
+
+class IssueStream(BaseStream):
+  'A Stream of issues.'
+  issue_count = 0
+  max_stream_size = 0
+
+  def append(self, metadata):
+    'Add an issue to the stream.'
+    super(IssueStream, self).append(metadata)
+    self.issue_count += 1
+    if len(self) > self.max_stream_size:
+      self.max_stream_size = len(self)
+
+  @property
+  def interval(self):
+    'How many issues will there be between entries when merged?'
+    return 1.0 * self.issue_count / len(self)
+
+  @property
+  def weight(self):
+    'The relative weight of the stream.'
+    return 1.0 * len(self) / self.max_stream_size
+
 
 class StreamClassifier(object):
   'Setup streams and provide interface to classify individual issues.'
+  issue_pattern = re.compile(r'(\d+) (.*)$')
+
   def __init__(self):
     self.volumes = {}
     self.volumes_seen = set()
     self.publishers = {}
+    self.streams = {
+      'ERRORS': ErrorStream('ERRORS'),
+      None: IssueStream('default'),
+    }
+    self.calibredb = CalibreDB()
 
   def _add_catchup_streams(self, stream_specs):
     'Add any catchup streams to the classifier.'
@@ -36,6 +95,7 @@ class StreamClassifier(object):
       if ':' in stream_spec:
         stream, volumes = stream_spec.split(':')
         stream = stream.lower()
+        self.streams[stream] = IssueStream(stream)
         for volume in volumes.split(','):
           if volume in self.volumes:
             raise ValueError('Duplicate volume detected in '
@@ -49,6 +109,7 @@ class StreamClassifier(object):
     for stream_spec in publisher_specs:
       publishers = stream_spec.split(',')
       stream = publishers[0].lower()
+      self.streams[stream] = IssueStream(stream)
       for publisher in publishers:
         if publisher in self.publishers:
           raise ValueError('Duplicate publisher detected in '
@@ -62,16 +123,34 @@ class StreamClassifier(object):
     if publisher_streams:
       self._add_publisher_streams(publisher_streams)
 
+  def identify(self, line):
+    'Take an input line and classify it.'
+    line = line.strip()
+    try:
+      match = self.issue_pattern.match(line)
+      if not match:
+        raise LineError(line)
+      issue = match.group(1)
+      metadata = self.calibredb.issue(int(issue))
+      if not metadata:
+        raise DatabaseError(line)
+      self.classify(metadata)
+    except (LineError, DatabaseError) as error:
+      logging.info('%s', error)
+      self.streams['ERRORS'].append(error)
+
   def classify(self, metadata):
     'Identify which classifier stream matches an issue.'
     volume = metadata.identifiers.get('comicvine-volume')
     publisher = metadata.publisher
+    self.volumes_seen.add(volume)
     if volume in self.volumes:
-      self.volumes_seen.add(volume)
-      return self.volumes[volume]
-    if publisher in self.publishers:
-      return self.publishers[publisher]
-    return None
+      stream = self.volumes[volume]
+    elif publisher in self.publishers:
+      stream = self.publishers[publisher]
+    else:
+      stream = None
+    self.streams[stream].append(metadata)
 
   def __del__(self):
     unseen_volumes = set(self.volumes.keys()) - self.volumes_seen
@@ -79,68 +158,39 @@ class StreamClassifier(object):
       logging.info('The following catchup volumes were not seen: %s', 
                    ','.join(unseen_volumes))
 
+  def merged_streams(self):
+    'Merge the sorted streams according to relative weights.'
+    subtitle_match = re.compile(r':[^#]+$')
+    collected = defaultdict(float)
+    yielded = defaultdict(int)
 
-def calculate_weights(streams):
-  '''Calculate relative stream weights.'''
-  lengths = [len(streams[stream]) for stream in streams]
-  items = sum(lengths)
-  max_stream = max(lengths)
-  weight = {stream: len(streams[stream]) / (1.0 * max_stream) 
-            for stream in streams}
+    # Pass errors through first
+    if 'ERRORS' in self.streams:
+      for error in self.streams['ERRORS']:
+        logging.info('Problem handling line: %s\n'
+                     'Passing through to output unmodified', error)
+        yield error.line
+      del self.streams['ERRORS']
 
-  logging.debug('Total list items: %d', items)
-  # Try and calculate interval.  With each loop, each stream will
-  # contribute weight issues to progress It requires 1/weight loops
-  # for a stream to contribute a whole issue so each stream will
-  # contribute an issue approximately every 'sum(weights)/weight'
-  # issues
-  loop_issues = sum(weight.values())
-  for stream in streams:
-    if stream == 'ERRORS':
-      # No nead for interval warning for errors
-      continue
-    if not weight[stream]:
-      raise ValueError('Stream has weight of zero.  Will never yield issues.')
-    interval = loop_issues / weight[stream]
-    logging.info('Stream %s (issues/weight/interval): (%d/%0.4f/%d)', 
-                  stream, len(streams[stream]), weight[stream], interval)
-    # A stream contributing less that 1 in 20 issues is probably a
-    # good indication that there are not enough issues for the stream
-    # to be effective
-    if interval > 20:
-      logging.info('Stream %s has weight of %0.4f which will result in '
-                   'significant gaps between issues (approx %0.1f issues). '
-                   'Consider removing this stream or merging it with '
-                   'another.', stream, weight[stream], interval)
-  return weight
-
-
-def merged_streams(streams):
-  'Merge the sorted streams according to relative weights.'
-  collected = defaultdict(float)
-
-  weight = calculate_weights(streams)
-
-  # Pass errors through first
-  if 'ERRORS' in streams:
-    for _, error in streams['ERRORS']:
-      logging.info('Problem handling line: %s\n'
-                   'Passing through to output unmodified', error)
-      yield error.line
-    del streams['ERRORS']
-
-  while True:
-    done = True
+    while True:
+      done = True
     
-    # Least frequent streams are yielded first to minimise their
-    # disruption from ideal position.
-    for stream in sorted(streams, key=lambda stream: -weight[stream]):
-      if streams[stream]:
-        done = False
-        collected[stream] += weight[stream]
-        if collected[stream] >= 1.0:
-          _, issue, title = streams[stream].pop(0)
-          yield '%d %s' % (issue, title)
-          collected[stream] -= 1.0
-    if done:
-      break
+      # Least frequent streams are yielded first to minimise their
+      # disruption from ideal position.
+      for stream in sorted(self.streams.values(),
+                           key=lambda stream: -stream.weight):
+        if not stream.weight:
+          raise ValueError('Weight for stream %s is zero.  '
+                           'Will never yield issues.' % stream.name)
+        if yielded[stream.name] < len(stream):
+          logging.debug('Stream %s: %d/%d', stream.name, yielded[stream.name],
+                        len(stream))
+          done = False
+          collected[stream.name] += stream.weight
+          if collected[stream.name] - yielded[stream.name] >= 1.0:
+            metadata = stream[yielded[stream.name]]
+            title = re.sub(subtitle_match, '', metadata.title)
+            yield '%d %s +%s' % (metadata.id, title, stream.name)
+            yielded[stream.name] += 1
+      if done:
+        break

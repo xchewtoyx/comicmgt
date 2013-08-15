@@ -3,17 +3,12 @@
 # pylint: disable=C0103
 '''Sort a toread list against publication dates from the calibre database.'''
 import logging
-import re
 import subprocess
 import sys
 
-from collections import defaultdict
-
 import args
-from calibredb import CalibreDB
 from streams import StreamClassifier
 
-ISSUE_PATTERN = re.compile(r'(\d+) (.*)$')
 
 args.add_argument('--archive', '-a', help='Archive file before sorting',
                   action='store_true')
@@ -27,146 +22,14 @@ args.add_argument('--verbose', '-v', help='Enable verbose logging',
                   action='count')
 ARGS = args.ARGS
 
-class LineError(Exception):
-  'Exception caused by a line which doesn\'t parse.'
-  def __init__(self, line):
-    self.line = line
-    super(LineError, self).__init__()
-
-  def __str__(self):
-    return 'Unable to parse line: %s' % self.line
-    
-
-class DatabaseError(Exception):
-  'Exception caused by an issue which isn\'t in the database.'
-  def __init__(self, issue, title):
-    self.issue = issue
-    self.title = title
-    self.line = '%d %s' % issue, title
-    super(DatabaseError, self).__init__()
-
-  def __str__(self):
-    return 'Unable to find issue in database: %s(%d)' % (
-      self.title, self.issue)
-
-
-def get_issues(infile):
-  'Find issues listed in "id title" format.'
-  for line in infile:
-    line = line.strip()
-    issueid = ISSUE_PATTERN.match(line)
-    if issueid:
-      issue_id, issue_name = issueid.groups()
-      logging.debug('Found issue "%s"(%s)', issue_name, issue_id)
-      yield (int(issue_id), issue_name), None
-    else:
-      yield None, LineError(line)
-
-
-def get_issue_details(infile):
-  'Look up issue details in Calibre library.'
-  calibredb = CalibreDB()
-  classifier = StreamClassifier()
-  classifier.add_streams(catchup_streams=ARGS.catchup_stream, 
-                         publisher_streams=ARGS.publisher)
-  for issue_data, error in get_issues(infile):
-    if error:
-      yield issue_data, error
-      continue
-    issue, title = issue_data
-    issue_meta = calibredb.issue(issue)
-    if issue_meta:
-      stream = classifier.classify(issue_meta)
-      logging.debug('Found issue %s(%d) [%s] [%s]', 
-                    title, issue, stream, issue_meta.pubdate)
-      # Return tuple with first entry being a tuple of the sort keys
-      yield ((issue_meta.pubdate, issue_meta.title_sort), 
-             issue, title, stream), None
-    else:
-      yield None, DatabaseError(issue, title)
-
-
-def get_streams(infile):
-  'Return the sorted streams after classification.'
-  streams = defaultdict(list)
-  for issue_details, error in get_issue_details(infile):
-    if error:
-      # Keep errors in relative order by using length of errors list
-      # as sort key
-      streams['ERRORS'].append(((len(streams['ERRORS']),), error))
-      continue
-    sortkey, issue, title, stream = issue_details
-    streams[stream].append((sortkey, issue, title))
-  for stream in streams:
-    streams[stream].sort()
-  return streams
-
-
-def calculate_weights(streams):
-  '''Calculate relative stream weights.'''
-  lengths = [len(streams[stream]) for stream in streams]
-  items = sum(lengths)
-  max_stream = max(lengths)
-  weight = {stream: len(streams[stream]) / (1.0 * max_stream) 
-            for stream in streams}
-
-  logging.debug('Total list items: %d', items)
-  # Try and calculate interval.  With each loop, each stream will
-  # contribute weight issues to progress It requires 1/weight loops
-  # for a stream to contribute a whole issue so each stream will
-  # contribute an issue approximately every 'sum(weights)/weight'
-  # issues
-  loop_issues = sum(weight.values())
-  for stream in streams:
-    if stream == 'ERRORS':
-      # No nead for interval warning for errors
-      continue
-    if not weight[stream]:
-      raise ValueError('Stream has weight of zero.  Will never yield issues.')
-    interval = loop_issues / weight[stream]
-    logging.info('Stream %s (issues/weight/interval): (%d/%0.4f/%d)', 
-                  stream, len(streams[stream]), weight[stream], interval)
-    # A stream contributing less that 1 in 20 issues is probably a
-    # good indication that there are not enough issues for the stream
-    # to be effective
-    if interval > 20:
-      logging.info('Stream %s has weight of %0.4f which will result in '
-                   'significant gaps between issues (approx %0.1f issues). '
-                   'Consider removing this stream or merging it with '
-                   'another.', stream, weight[stream], interval)
-  return weight
-
-
-def merged_streams(infile):
-  'Merge the sorted streams according to relative weights.'
-  streams = get_streams(infile)
-  collected = defaultdict(float)
-
-  weight = calculate_weights(streams)
-
-  # Pass errors through first
-  if 'ERRORS' in streams:
-    for _, error in streams['ERRORS']:
-      logging.info('Problem handling line: %s\n'
-                   'Passing through to output unmodified', error)
-      yield error.line
-    del streams['ERRORS']
-
-  while True:
-    done = True
-    
-    # Least frequent streams are yielded first to minimise their
-    # disruption from ideal position.
-    for stream in sorted(streams, key=lambda stream: -weight[stream]):
-      if streams[stream]:
-        done = False
-        collected[stream] += weight[stream]
-        if collected[stream] >= 1.0:
-          _, issue, title = streams[stream].pop(0)
-          yield '%d %s' % (issue, title)
-          collected[stream] -= 1.0
-    if done:
-      break
+def archive():
+  'Archive todo list.'
+  if ARGS.archive:
+    try:
+      output = subprocess.check_output([ARGS.todobin, 'archive'])
+    except subprocess.CalledProcessError as error:
+      logging.error('Unable to archive old items: %s', error.output)
+    logging.info('Archive successful: %s', output)
 
 
 def main():
@@ -178,19 +41,16 @@ def main():
     else:
       logger.setLevel(logging.INFO)
 
-  # archive todo list
-  if ARGS.archive:
-    try:
-      output = subprocess.check_output([ARGS.todobin, 'archive'])
-    except subprocess.CalledProcessError as error:
-      logging.error('Unable to archive old items: %s', error.output)
-    logging.info('Archive successful: %s', output)
+  classifier = StreamClassifier()
+  classifier.add_streams(catchup_streams=ARGS.catchup_stream, 
+                         publisher_streams=ARGS.publisher)
 
   # Open input and sort by pubdate then name
   infile = ARGS.infile
   if isinstance(infile, basestring):
     infile = open(infile, 'r')
-  lines = list(merged_streams(infile))
+  for line in infile:
+    classifier.identify(line)
   if infile is not sys.stdin:
     infile.close()
     
@@ -198,7 +58,8 @@ def main():
   outfile = ARGS.outfile
   if isinstance(outfile, basestring):
     outfile = open(outfile, 'w')
-  outfile.write('\n'.join(lines) + '\n')
+  for line in classifier.merged_streams():
+    outfile.write(line + '\n')
   if outfile is sys.stdout:
     outfile.flush()
   else:
@@ -206,4 +67,7 @@ def main():
 
 if __name__ == '__main__':
   args.parse_args()
-  main()
+  try:
+    main()
+  except KeyboardInterrupt:
+    sys.exit(1)

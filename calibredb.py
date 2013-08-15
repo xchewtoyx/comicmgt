@@ -32,9 +32,10 @@ class CalibreDB(LibraryDatabase2):
     'Retrieve data on a volume by comicvine volume id'
     pass
 
-if __name__ == '__main__':
+def main(issues):
+  'If run as a script identify issues provided as arguments.'
   calibredb = CalibreDB()
-  for issue in sys.argv[1:]:
+  for issue in issues:
     issue_data = calibredb.issue(int(issue))
     if issue_data:
       print 'Found issue %s(%s) [%s/%s] {%s}' % (
@@ -42,3 +43,6 @@ if __name__ == '__main__':
 	issue_data.identifiers)
     else:
       print 'No issue found with id %s' % issue
+
+if __name__ == '__main__':
+  main(sys.argv[1:])
