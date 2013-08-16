@@ -45,11 +45,12 @@ class BaseStream(list):
   'A Stream.'
   def __init__(self, name):
     super(BaseStream, self).__init__()
-    self.name = name.replace(' ', '_')<
+    self.name = name.replace(' ', '_')
 
 
 class ErrorStream(BaseStream):
   'A class to hold any entries for which there are problems'
+  name = 'ERRORS'
 
 
 class IssueStream(BaseStream):
@@ -87,9 +88,9 @@ class StreamClassifier(object):
     self.volumes_seen = set()
     self.publishers = {}
     self.streams = {
-      'ERRORS': ErrorStream('ERRORS'),
       None: IssueStream('default'),
     }
+    self.errors = ErrorStream()
     self.calibredb = CalibreDB()
 
   def _add_catchup_streams(self, stream_specs):
@@ -140,7 +141,7 @@ class StreamClassifier(object):
       self.classify(metadata)
     except (LineError, DatabaseError) as error:
       logging.info('%s', error)
-      self.streams['ERRORS'].append(error)
+      self.errors.append(error)
 
   def classify(self, metadata):
     'Identify which classifier stream matches an issue.'
@@ -168,20 +169,26 @@ class StreamClassifier(object):
     yielded = defaultdict(int)
 
     # Pass errors through first
-    if 'ERRORS' in self.streams:
-      for error in self.streams['ERRORS']:
-        logging.info('Problem handling line: %s\n'
-                     'Passing through to output unmodified', error)
-        yield error.line
-      del self.streams['ERRORS']
+    for error in self.errors:
+      logging.info('Problem handling line: %s\n'
+                   'Passing through to output unmodified', error)
+      yield error.line
+
+    # Sort streams in ascending weight order.  By yielding the least
+    # frequent streams first we minimise their disruption from ideal
+    # position.
+    streams = sorted(self.streams.values(), key=lambda stream: -stream.weight)
+
+    # Log stream stats
+    for stream in streams:
+      logging.info('Stream stats for %s (length/weight/interval): '
+                   '%d/%0.4f/%0.4f', stream.name, len(stream), stream.weight,
+                   stream.interval)
 
     while True:
       done = True
     
-      # Least frequent streams are yielded first to minimise their
-      # disruption from ideal position.
-      for stream in sorted(self.streams.values(),
-                           key=lambda stream: -stream.weight):
+      for stream in streams
         if not stream.weight:
           raise ValueError('Weight for stream %s is zero.  '
                            'Will never yield issues.' % stream.name)
