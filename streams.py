@@ -196,6 +196,7 @@ class StreamClassifier(object):
     logging.info('Total issues: %d', IssueStream.issue_count)
     logging.info('Longest stream: %d', IssueStream.max_stream_size)
     for stream in streams:
+      stream.sort(key=lambda metadata: metadata.pubdate)
       logging.info('[%s] Stream start date: %s', stream.name, 
                    stream[0].pubdate)
       logging.info('[%s] Stream stats (length/weight/interval): '
