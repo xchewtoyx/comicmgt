@@ -50,7 +50,6 @@ class BaseStream(list):
 
 class ErrorStream(BaseStream):
   'A class to hold any entries for which there are problems'
-  name = 'ERRORS'
 
 
 class IssueStream(BaseStream):
@@ -58,10 +57,15 @@ class IssueStream(BaseStream):
   issue_count = 0
   max_stream_size = 0
 
+  def __init__(self, name):
+    super(IssueStream, self).__init__(name)
+    self.volumes_seen = set()
+
   def append(self, metadata):
     'Add an issue to the stream.'
     super(IssueStream, self).append(metadata)
     type(self).issue_count += 1
+    self.volumes_seen.add(metadata.identifiers.get('comicvine-volume'))
     if len(self) > self.max_stream_size:
       type(self).max_stream_size = len(self)
       logging.debug('New heavy hitter %s (%d)', self.name, len(self))
@@ -77,6 +81,15 @@ class IssueStream(BaseStream):
     weight = len(self) / (1.0 * self.max_stream_size)
     return weight
 
+  @property
+  def volume_count(self):
+    'The number of unique volumes in this stream.'
+    return len(self.volumes_seen)
+
+  @property
+  def volume_interval(self):
+    'The interval seen by an individual volume.'
+    return self.interval * self.volume_count
 
 
 class StreamClassifier(object):
@@ -90,7 +103,7 @@ class StreamClassifier(object):
     self.streams = {
       None: IssueStream('default'),
     }
-    self.errors = ErrorStream()
+    self.errors = ErrorStream('ERRORS')
     self.calibredb = CalibreDB()
 
   def _add_catchup_streams(self, stream_specs):
@@ -177,13 +190,20 @@ class StreamClassifier(object):
     # Sort streams in ascending weight order.  By yielding the least
     # frequent streams first we minimise their disruption from ideal
     # position.
-    streams = sorted(self.streams.values(), key=lambda stream: -stream.weight)
+    streams = sorted(self.streams.values(), key=lambda stream: stream.weight)
 
     # Log stream stats
+    logging.info('Total issues: %d', IssueStream.issue_count)
+    logging.info('Longest stream: %d', IssueStream.max_stream_size)
     for stream in streams:
-      logging.info('Stream stats for %s (length/weight/interval): '
+      logging.info('[%s] Stream start date: %s', stream.name, 
+                   stream[0].pubdate)
+      logging.info('[%s] Stream stats (length/weight/interval): '
                    '%d/%0.4f/%0.4f', stream.name, len(stream), stream.weight,
                    stream.interval)
+      logging.info('[%s] Title stats (titles/title interval): %d/%0.4f', 
+                   stream.name, stream.volume_count, stream.volume_interval)
+      stream_volumes = len(stream.volumes_seen)
 
     while True:
       done = True
