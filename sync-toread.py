@@ -19,12 +19,8 @@ import re
 
 from collections import OrderedDict
 
-import calibre_config                                  # pylint: disable=W0611
-from calibre.library.database2 import LibraryDatabase2 # pylint: disable=F0401
-from calibre.library.save_to_disk import save_to_disk  # pylint: disable=F0401
-from calibre.utils.config import prefs                 # pylint: disable=F0401
-
 import args
+from calibredb import CalibreDB, set_log_level
 
 args.add_argument('--count', '-c', help='Number of issues to sync',
                   type=int, default='50')
@@ -54,50 +50,6 @@ class ToRead(OrderedDict):
                         title_match.group(1))
         else:
           logging.info('Unmatching toread line: %s', title)
-
-
-class CalibreDatabase(LibraryDatabase2):
-  'Operate on calibre database'
-  class ExportFile(object):
-    'Options for exporting files from library'
-    # This class is a pure namespace so ignore the fact there are no methods
-    # pylint: disable=R0903
-    asciiize = True
-    formats = 'cbr,cbz'
-    replace_whitespace = False
-    save_cover = False
-    single_dir = True
-    template = '{pubdate} {title} ({id})'
-    timefmt = '%Y%m%d'
-    to_lowercase = False
-    update_metadata = False
-    write_opf = False
-
-  def __init__(self):
-    LibraryDatabase2.__init__(self, prefs['library_path'])
-
-  def export_files(self, titles, syncdir):
-    'Export selected ids to specified directory'
-    def export_progress(calibre_id, title, failed, traceback):
-      'Callback used for progress updates during the export operation.'
-      if failed:
-        logging.error('Unable to export %s(%s): %s',
-                      title, calibre_id, traceback)
-      else:
-        logging.debug('Exported %s(%s)', title, calibre_id)
-      return not(failed)
-
-    opts = self.ExportFile()
-    ids = [int(idx) for idx in list(set(titles)-set(syncdir.keys()))]
-    logging.info('Exporting %d titles...', len(ids))
-    failures = save_to_disk(
-      self, ids, syncdir.directory, opts=opts, callback=export_progress)
-    # Callback does not recieve the filename, so rather than updating
-    # syncdir as files are added we need to rescan once the export is
-    # complete...
-    syncdir.scan()
-    if failures:
-      logging.warn('Unable to export files: %s', repr(failures))
 
 
 class ExportDirectory(dict):
@@ -214,13 +166,19 @@ def main():
   logger = logging.getLogger()
   if ARGS.verbose:
     if ARGS.verbose == 1:
+      set_log_level(logging.INFO)
       logger.setLevel(logging.INFO)
     else:
+      set_log_level(logging.DEBUG)
       logger.setLevel(logging.DEBUG)
+  else:
+    # Need to set the calibre log level down when running under
+    # calibre-debug
+    set_log_level(logging.WARNING)
 
   toread = ToRead(ARGS.toread)
   syncdir = ExportDirectory(ARGS.syncdir)
-  calibredb = CalibreDatabase()
+  calibredb = CalibreDB()
 
   # Grab the ids of the first count entries
   wanted = toread.keys()[:ARGS.count]

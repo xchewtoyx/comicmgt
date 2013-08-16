@@ -8,7 +8,7 @@ import sys
 
 import args
 from streams import StreamClassifier
-
+import calibredb
 
 args.add_argument('--archive', '-a', help='Archive file before sorting',
                   action='store_true')
@@ -37,9 +37,15 @@ def main():
   logger = logging.getLogger()
   if ARGS.verbose:
     if ARGS.verbose >= 2:
+      calibredb.set_log_level(logging.DEBUG)
       logger.setLevel(logging.DEBUG)
     else:
+      calibredb.set_log_level(logging.INFO)
       logger.setLevel(logging.INFO)
+  else:
+    # When running under calibre-debug the default log level needs to
+    # be reduced.
+    calibredb.set_log_level(logging.WARNING)
 
   classifier = StreamClassifier()
   classifier.add_streams(catchup_streams=ARGS.catchup_stream, 
