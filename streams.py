@@ -188,7 +188,7 @@ class StreamClassifier(object):
     while True:
       done = True
     
-      for stream in streams
+      for stream in streams:
         if not stream.weight:
           raise ValueError('Weight for stream %s is zero.  '
                            'Will never yield issues.' % stream.name)
