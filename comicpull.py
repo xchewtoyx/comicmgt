@@ -54,20 +54,28 @@ class PullList(object):
   def add_issue(self, issueid):
     logging.debug('Adding %d to issue list.', issueid)
     with sqlite3.connect(self.pulldb) as conn:
-      conn.execute('INSERT INTO seen_issues (issue) VALUES (?)', issueid)
+      try:
+        conn.execute('INSERT INTO seen_issues (issue) VALUES (?)', (issueid,))
+      except sqlite3.IntegrityError:
+        logging.warn('Issue %d is already added', issueid)
 
   def add_volume(self, volumeid):
     logging.debug('Adding %d to volume list.', volumeid)
     with sqlite3.connect(self.pulldb) as conn:
-      conn.execute('INSERT INTO pull_volumes (volume) VALUES (?)', volumeid)
+      try:
+        conn.execute(
+          'INSERT INTO pull_volumes (volume) VALUES (?)', (volumeid,))
+      except sqlite3.IntegrityError:
+        logging.warn('Volume %d is already added', volumeid)
 
   def pull_volume(self, volumeid):
     logging.debug('Looking up volume id %d', volumeid)
     pull = False
     with sqlite3.connect(self.pulldb) as conn:
-      c = conn.execute('SELECT volume FROM pull_volumes WHERE issue=?', 
-                       volumeid)
-      if c.fetchone()[0] == volumeid:
+      c = conn.execute('SELECT volume FROM pull_volumes WHERE volume=?', 
+                       (volumeid,))
+      (result,) = c.fetchone()
+      if result == volumeid:
         pull = True
     return pull
 
@@ -75,15 +83,17 @@ class PullList(object):
     logging.debug('Looking up issue id %d', issueid)
     seen = False
     with sqlite3.connect(self.pulldb) as conn:
-      c = conn.execute('SELECT issue FROM seen_issues WHERE issue=?', issueid)
-      if c.fetchone()[0] == issueid:
+      c = conn.execute('SELECT issue FROM seen_issues WHERE issue=?', 
+                       (issueid,))
+      (result,) = c.fetchone()
+      if result == issueid:
         seen = True
     return seen
 
   def volumes(self):
     with sqlite3.connect(self.pulldb) as conn:
       for (volume,) in conn.execute('SELECT volume FROM pull_volumes'):
-        yield volume[0]
+        yield volume
 
 class ReadingList(object):
   def __init__(self, readinglist):
@@ -95,25 +105,25 @@ class ReadingList(object):
         reading_file.write('%d %s\n' % issue)
 
 def set_logging():
+  logger = logging.getLogger()
+  level = logging.WARN
   if ARGS.verbose > 1:
-    logging.setLevel(logging.DEBUG)
-    set_log_level(logging.DEBUG)
+    level = logging.DEBUG
   if ARGS.verbose == 1:
-    logging.setLevel(logging.INFO)
-    set_log_level(logging.INFO)
-  else:
-    logging.setLevel(logging.WARN)
-    set_log_level(logging.WARN)
+    level = logging.INFO
+  logger.setLevel(level)
+  set_log_level(level)
 
 def main():
   calibredb = CalibreDB()
   pull_list = PullList(ARGS.pulldb)
   # Add new volumes
-  if ARGS.addvolume:
-    for volume in ARGS.addvolume:
-      pull_list.add_volume(int(volume))
-  # Check database for new issues for pull volumes
+  if ARGS.add_volume:
+    for volume in [int(vol) for vol in ARGS.add_volume]:
+      if not pull_list.pull_volume(volume):
+        pull_list.add_volume(int(volume))
   if not ARGS.nopull:
+    # Check database for new issues for pull volumes
     new_issues = []
     for volume in pull_list.volumes():
       logging.info('Found volume %d', volume)
@@ -122,10 +132,12 @@ def main():
         if not pull_list.seen_issue(issue['id']):
           logging.debug('Found unseen issue %d', issue['id'])
           new_issues.append((issue['id'], issue['title']))
-  # Update toread list
+    # Update toread list
     if new_issues:
       toread = ReadingList(ARGS.todo_file)
       toread.add_issues(new_issues)
+      for (issue, title) in new_issues:
+        pull_list.add_issue(int(issue))
 
 if __name__ == '__main__':
   args.parse_args()
