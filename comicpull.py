@@ -12,6 +12,7 @@ import sqlite3
 import args
 from calibredb import CalibreDB
 import logs
+from toread import ReadingList
 
 ARGS = args.ARGS
 
@@ -105,17 +106,6 @@ class PullList(object):
     with sqlite3.connect(self.pulldb) as conn:
       for (volume,) in conn.execute('SELECT volume FROM pull_volumes'):
         yield volume
-
-class ReadingList(object):
-  'Manage todo.txt style reading list.'
-  def __init__(self, readinglist):
-    self.readinglist = readinglist
-
-  def add_issues(self, issues):
-    'Append an issue to the reading list.'
-    with open(self.readinglist, 'a') as reading_file:
-      for issue in issues:
-        reading_file.write('%d %s\n' % issue)
 
 def pull_issues(pull_list):
   'Check for unseen issues in database and add them to toread list.'
