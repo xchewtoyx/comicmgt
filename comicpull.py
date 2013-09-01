@@ -84,8 +84,8 @@ class PullList(object):
     with sqlite3.connect(self.pulldb) as conn:
       c = conn.execute('SELECT volume FROM pull_volumes WHERE volume=?', 
                        (volumeid,))
-      (result,) = c.fetchone()
-      if result == volumeid:
+      result = c.fetchone()
+      if result and result[0] == volumeid:
         pull = True
     return pull
 
@@ -96,8 +96,8 @@ class PullList(object):
     with sqlite3.connect(self.pulldb) as conn:
       c = conn.execute('SELECT issue FROM seen_issues WHERE issue=?', 
                        (issueid,))
-      (result,) = c.fetchone()
-      if result == issueid:
+      result = c.fetchone()
+      if result and result[0] == issueid:
         seen = True
     return seen
 
