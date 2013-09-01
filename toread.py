@@ -33,7 +33,10 @@ class ReadingList(object):
         if issue_match:
           issueid = int(issue_match.group(1))
           if as_metadata:
-            yield self.calibredb.issue(issueid)
+            try:
+              yield self.calibredb.issue(issueid)
+            except ValueError:
+              continue
           else:
             yield (issueid, issue_match.group(2))
 
@@ -41,8 +44,8 @@ class ReadingList(object):
     'Generate list of volumes in toread list'
     volumes = set()
     for issue in self.list_issues(as_metadata=True):
-      volumeid = int(issue.identifiers.get('comicvine-volume'))
+      volumeid = issue.identifiers.get('comicvine-volume')
       if volumeid:
-        volumes.add((volumeid, issue.series))
+        volumes.add((int(volumeid), issue.series))
     for volume in volumes:
       yield volume
