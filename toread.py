@@ -22,8 +22,8 @@ class ReadingList(object):
   def add_issues(self, issues):
     'Append an issue to the reading list.'
     with open(self.readinglist, 'a') as reading_file:
-      for issue in issues:
-        reading_file.write('%d %s\n' % issue)
+      for (issueid, title, _) in issues:
+        reading_file.write('%d %s\n' % (issueid, title))
 
   def list_issues(self, as_metadata=False):
     'Generate list of issues in toread list'

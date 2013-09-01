@@ -56,14 +56,16 @@ class PullList(object):
     'Create the seen_issues table.'
     logging.info('Creating seen_issues table')
     with sqlite3.connect(self.pulldb) as conn:
-      conn.execute("CREATE TABLE seen_issues (issue INTEGER PRIMARY KEY)")
+      conn.execute(
+        "CREATE TABLE seen_issues (issue INTEGER PRIMARY KEY, volume INTEGER)")
 
-  def add_issue(self, issueid):
+  def add_issue(self, issueid, volumeid=None):
     'Add an issue to the seen_issues table.'
     logging.debug('Adding %d to issue list.', issueid)
     with sqlite3.connect(self.pulldb) as conn:
       try:
-        conn.execute('INSERT INTO seen_issues (issue) VALUES (?)', (issueid,))
+        conn.execute('INSERT INTO seen_issues (issue, volume) VALUES (?,?)', 
+                     (issueid,volumeid))
       except sqlite3.IntegrityError:
         logging.warn('Issue %d is already added', issueid)
 
@@ -101,6 +103,18 @@ class PullList(object):
         seen = True
     return seen
 
+  def seen_issues(self, volumeid):
+    'Return list of issues that have been seen for a particular volume.'
+    logging.debug('Looking up seen issues for volume %d', volumeid)
+    issues = []
+    with sqlite3.connect(self.pulldb) as conn:
+      c = conn.execute('SELECT issue FROM seen_issues WHERE volume=?',
+                       (volumeid,))
+      results = c.fetchall()
+      if results:
+        issues = [result[0] for result in results]
+    return issues
+
   def volumes(self):
     'Pulled volumes list generator.'
     with sqlite3.connect(self.pulldb) as conn:
@@ -113,18 +127,29 @@ def pull_issues(pull_list):
   # Check database for new issues for pull volumes
   new_issues = []
   for volume in pull_list.volumes():
-    logging.info('Found volume %d', volume)
+    logging.info('Checking volume %d for new issues', volume)
     calibredb.search(query='identifiers:comicvine-volume:%d' % volume)
+    seen_issues = pull_list.seen_issues(volume)
     for issue in calibredb.get_data_as_dict():
-      if not pull_list.seen_issue(issue['id']):
-        logging.debug('Found unseen issue %d', issue['id'])
-        new_issues.append((issue['id'], issue['title']))
+      issueid = issue['id']
+      if issueid in seen_issues:
+        logging.debug('Issue %d already seen in volume %d', issueid, volume)
+        continue
+      # Sometimes issues will be retagged after being pulled.  Double
+      # check that the issue isn't in the database associated with a
+      # different volume before pulling.
+      if pull_list.seen_issue(issue['id']):
+        logging.warn('Issue %d seen but not associated with volume %d',
+                      issueid, volume)
+        continue
+      logging.info('Found unseen issue %d', issueid)
+      new_issues.append((issueid, issue['title'], volume))
   # Update toread list
   if new_issues:
     toread = ReadingList(ARGS.todo_file)
     toread.add_issues(new_issues)
-    for (issue, _) in new_issues:
-      pull_list.add_issue(int(issue))
+    for (issue, _, volume) in new_issues:
+      pull_list.add_issue(int(issue), volume)
 
 def main():
   'Check for new issues to pull.'
