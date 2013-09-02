@@ -73,12 +73,21 @@ class IssueStream(BaseStream):
   @property
   def interval(self):
     'How many issues will there be between entries when merged?'
-    return self.issue_count / (1.0 * len(self))
+    try:
+      interval = self.issue_count / (1.0 * len(self))
+    except ZeroDivisionError:
+      logging.warn('Stream length is zero.  Nothing to do.')
+      interval = 1
+    return interval
 
   @property
   def weight(self):
     'The relative weight of the stream.'
-    weight = len(self) / (1.0 * self.max_stream_size)
+    try:
+      weight = len(self) / (1.0 * self.max_stream_size)
+    except ZeroDivisionError:
+      logging.warn('Max stream length is zero. Nothing to do')
+      weight = 1
     return weight
 
   @property
@@ -197,20 +206,23 @@ class StreamClassifier(object):
     logging.info('Longest stream: %d', IssueStream.max_stream_size)
     for stream in streams:
       stream.sort(key=lambda metadata: metadata.pubdate)
-      logging.info('[%s] Stream start date: %s', stream.name, 
-                   stream[0].pubdate)
-      logging.info('[%s] Stream stats (length/weight/interval): '
-                   '%d/%0.4f/%0.4f', stream.name, len(stream), stream.weight,
-                   stream.interval)
-      logging.info('[%s] Title stats (titles/title interval): %d/%0.4f', 
-                   stream.name, stream.volume_count, stream.volume_interval)
+      if len(stream):
+        logging.info('[%s] Stream start date: %s', stream.name, 
+                     stream[0].pubdate)
+        logging.info('[%s] Stream stats (length/weight/interval): '
+                     '%d/%0.4f/%0.4f', stream.name, len(stream), stream.weight,
+                     stream.interval)
+        logging.info('[%s] Title stats (titles/title interval): %d/%0.4f', 
+                     stream.name, stream.volume_count, stream.volume_interval)
+      else:
+        logging.info('[%s] Stream is empty', stream.name)
       stream_volumes = len(stream.volumes_seen)
 
     while True:
       done = True
     
       for stream in streams:
-        if not stream.weight:
+        if len(stream) and not stream.weight:
           raise ValueError('Weight for stream %s is zero.  '
                            'Will never yield issues.' % stream.name)
         if yielded[stream.name] < len(stream):
