@@ -4,6 +4,7 @@
 
 Manage titles on pull-list and add new titles to toread list.
 '''
+from datetime import datetime
 import logging
 import sqlite3
 
@@ -35,22 +36,25 @@ class PullList(object):
     'Create the pull_volumes table.'
     logging.info('Creating pull_volumes table')
     with sqlite3.connect(self.pulldb) as conn:
-      conn.execute("CREATE TABLE pull_volumes (volume INTEGER PRIMARY KEY)")
+      conn.execute("CREATE TABLE pull_volumes (volume INTEGER PRIMARY KEY, "
+                   "start_date TIMESTAMP)")
 
   def _create_seen_issues(self):
     'Create the seen_issues table.'
     logging.info('Creating seen_issues table')
     with sqlite3.connect(self.pulldb) as conn:
       conn.execute(
-        "CREATE TABLE seen_issues (issue INTEGER PRIMARY KEY, volume INTEGER)")
+        "CREATE TABLE seen_issues (issue INTEGER PRIMARY KEY, cvid INTEGER, "
+        "volume INTEGER)")
 
-  def add_issue(self, issueid, volumeid=None):
+  def add_issue(self, issueid, volumeid=None, cvid=None):
     'Add an issue to the seen_issues table.'
     logging.debug('Adding %d to issue list.', issueid)
     with sqlite3.connect(self.pulldb) as conn:
       try:
-        conn.execute('INSERT INTO seen_issues (issue, volume) VALUES (?,?)', 
-                     (issueid,volumeid))
+        conn.execute(
+          'INSERT OR REPLACE INTO seen_issues (issue, volume, cvid) '
+          'VALUES (?,?,?)', (issueid,volumeid,cvid))
       except sqlite3.IntegrityError:
         logging.warn('Issue %d is already added', issueid)
 
@@ -64,6 +68,16 @@ class PullList(object):
       except sqlite3.IntegrityError:
         logging.warn('Volume %d is already added', volumeid)
 
+  def remove_volume(self, volumeid):
+    'Removing a volume to the pull list.'
+    logging.info('Removing %d and all related issues from pull list.', 
+                 volumeid)
+    with sqlite3.connect(self.pulldb) as conn:
+      conn.execute(
+        'DELETE FROM seen_issues WHERE volume=?', (volumeid,))
+      conn.execute(
+        'DELETE FROM pull_volumes WHERE volume=?', (volumeid,))
+
   def pull_volume(self, volumeid):
     'Check whether a volume is in the pull-list.'
     logging.debug('Looking up volume id %d', volumeid)
@@ -76,32 +90,55 @@ class PullList(object):
         pull = True
     return pull
 
-  def seen_issue(self, issueid):
+  def seen_issue(self, issueid, cvid=False):
     'Check whether an issue has been seen before.'
     logging.debug('Looking up issue id %d', issueid)
     seen = False
+    column = 'issue'
+    if cvid:
+      column = 'cvid'
     with sqlite3.connect(self.pulldb) as conn:
-      cursor = conn.execute('SELECT issue FROM seen_issues WHERE issue=?', 
-                       (issueid,))
+      cursor = conn.execute(
+        'SELECT %s FROM seen_issues WHERE issue=?' % (column,), (issueid,))
       result = cursor.fetchone()
       if result and result[0] == issueid:
         seen = True
     return seen
 
-  def seen_issues(self, volumeid):
+  def seen_issues(self, volumeid, cvid=False):
     'Return list of issues that have been seen for a particular volume.'
-    logging.debug('Looking up seen issues for volume %d', volumeid)
+    if not volumeid:
+      logging.debug('Looking up seen issues with no volume')
+      condition = 'volume IS NULL'
+      values = ()
+    else:
+      logging.debug('Looking up seen issues for volume %d', volumeid)
+      condition = 'volume=?'
+      values = (volumeid,)
     issues = []
+    column = 'issue'
+    if cvid:
+      column = 'cvid'
     with sqlite3.connect(self.pulldb) as conn:
-      cursor = conn.execute('SELECT issue FROM seen_issues WHERE volume=?',
-                            (volumeid,))
+      cursor = conn.execute(
+        'SELECT %s FROM seen_issues WHERE %s' % (column,condition), values)
       results = cursor.fetchall()
       if results:
         issues = [result[0] for result in results]
     return issues
 
+  def volume_starts(self):
+    'Return start dates for volumes.'
+    start = {}
+    with sqlite3.connect(self.pulldb, 
+                         detect_types=sqlite3.PARSE_DECLTYPES) as conn:
+      for (volume,start_date) in conn.execute(
+        'SELECT volume,start_date FROM pull_volumes'):
+        start[volume] = start_date or datetime.min
+    return start
+
   def volumes(self):
-    'Pulled volumes list generator.'
+    'Pulled volumes list generator. Returns ids only.'
     with sqlite3.connect(self.pulldb) as conn:
       for (volume,) in conn.execute('SELECT volume FROM pull_volumes'):
         yield volume

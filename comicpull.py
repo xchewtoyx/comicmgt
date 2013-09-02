@@ -37,6 +37,11 @@ def pull_issues(pull_list):
     seen_issues = pull_list.seen_issues(volume)
     for issue in calibredb.get_data_as_dict():
       issueid = issue['id']
+      identifiers = {}
+      for ident in issue['identifiers'].split(','):
+        identifiers.update((ident.split(':'),))
+      cvid = identifiers.get('comicvine')
+      
       if issueid in seen_issues:
         logging.debug('Issue %d already seen in volume %d', issueid, volume)
         continue
@@ -48,13 +53,13 @@ def pull_issues(pull_list):
                       issueid, volume)
         continue
       logging.info('Found unseen issue %d', issueid)
-      new_issues.append((issueid, issue['title'], volume))
+      new_issues.append((issueid, issue['title'], volume, cvid))
   # Update toread list
   if new_issues:
     toread = ReadingList(ARGS.todo_file)
     toread.add_issues(new_issues)
-    for (issue, _, volume) in new_issues:
-      pull_list.add_issue(int(issue), volume)
+    for (issue, _, volume, cvid) in new_issues:
+      pull_list.add_issue(int(issue), volume, cvid)
 
 def main():
   'Check for new issues to pull.'

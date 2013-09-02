@@ -22,7 +22,7 @@ class ReadingList(object):
   def add_issues(self, issues):
     'Append an issue to the reading list.'
     with open(self.readinglist, 'a') as reading_file:
-      for (issueid, title, _) in issues:
+      for (issueid, title, _, _) in issues:
         reading_file.write('%d %s\n' % (issueid, title))
 
   def list_issues(self, as_metadata=False):
