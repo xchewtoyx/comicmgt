@@ -2,7 +2,7 @@
 # Copyright 2013 Russell Heilling
 'List titles in pull-list.'
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 import os
 import threading
@@ -68,8 +68,17 @@ class CheckShard(threading.Thread):
       if self._sharded_to_us(volume):
         shard_volumes.add(volume)
     self.logger.info('Processing %d volumes', len(shard_volumes))
+    min_start = min(v for k,v in self.pull_list.volume_starts(
+        ).items() if k in shard_volumes)
     volumes = volume_details(shard_volumes)
-    issues = issue_details(shard_volumes)
+    issues = set()
+    for issue in issue_details(shard_volumes, sort='store_date:desc'):
+      if not isinstance(issue, pycomicvine.Issue):
+        logging.error('Issue has wrone type: %s, %r', type(issue), issue)
+        continue
+      if issue.store_date and issue.store_date.date() < min_start:
+        break
+      issues.add(issue)
     for volume in volumes:
       self.logger.debug('Checking volume %d', volume.id)
       seen_issues = set()
@@ -95,7 +104,13 @@ def check_missing(pull_list):
     logging.info('Found %d missing issues.', len(missing_issues))
   volume_start = pull_list.volume_starts()
   for issue in missing_issues:
-    issue_date = issue.store_date or datetime.min
+    if not isinstance(issue, pycomicvine.Issue):
+      logging.warn('Issue has wrong type: %s %r', type(issue), issue)
+      continue
+    if issue.store_date:
+      issue_date = issue.store_date.date()
+    else:
+      issue_date = date.min
     if issue_date > volume_start[issue.volume.id]:
       print 'Missing: %s #%s (%d/%d) [%s]' % (
         issue.volume.name, issue.issue_number, issue.volume.id, 
@@ -112,7 +127,7 @@ def check_expired(pull_list):
   issues = issue_details(pull_volumes, sort='store_date:desc')
   expire_limit = timedelta(int(ARGS.expire_limit))
   for issue in issues:
-    if today - issue.store_date > expire_limit:
+    if issue.store_date and today - issue.store_date > expire_limit:
       break
     fresh_volumes.add(issue.volume)
   expired_volumes = volumes - fresh_volumes

@@ -4,7 +4,7 @@
 
 Manage titles on pull-list and add new titles to toread list.
 '''
-from datetime import datetime
+from datetime import date, datetime
 import logging
 import sqlite3
 
@@ -73,6 +73,8 @@ class PullList(object):
                          detect_types=sqlite3.PARSE_DECLTYPES) as conn:
       if start_date:
         logging.debug('Setting start date for %d(%s).', volumeid, start_date)
+        if isinstance(start_date, datetime):
+          start_date = start_date.date()
         conn.execute('UPDATE pull_volumes SET start_date=? WHERE volume=?',
                      (start_date, volumeid))
       row = conn.execute(
@@ -80,7 +82,7 @@ class PullList(object):
         (volumeid,)).fetchone()
     if row:
       return row[0]
-    return datetime.min
+    return date.min
     
   def remove_volume(self, volumeid):
     'Removing a volume to the pull list.'
@@ -148,7 +150,7 @@ class PullList(object):
                          detect_types=sqlite3.PARSE_DECLTYPES) as conn:
       for (volume,start_date) in conn.execute(
         'SELECT volume,start_date FROM pull_volumes'):
-        start[volume] = start_date or datetime.min
+        start[volume] = start_date or date.min
     return start
 
   def volumes(self):

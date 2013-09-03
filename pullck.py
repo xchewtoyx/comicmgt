@@ -2,7 +2,7 @@
 # Copyright 2013 Russell Heilling
 'List titles in pull-list.'
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 import os
 
@@ -39,13 +39,13 @@ def fix_issues(pull_list, calibredb):
 def fix_start_dates(pull_list):
   for volume in list(pull_list.volumes()):
     volume_start = pull_list.start_date(volume)
-    if volume_start and volume_start.date > datetime.min.date:
+    if volume_start and volume_start > date.min:
       continue
     volume_detail = pycomicvine.Volume(volume, field_list=[
         'id', 'name', 'start_year'])
     logging.info('Setting start year for volume: %s (%d) [%s]',
                  volume_detail.name, volume, volume_detail.start_year)
-    start_date = datetime(volume_detail.start_year, 1, 1)
+    start_date = date(volume_detail.start_year, 1, 1)
     pull_list.start_date(volume, start_date=start_date)
 
 def main():
