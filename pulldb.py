@@ -69,16 +69,17 @@ class PullList(object):
         logging.warn('Volume %d is already added', volumeid)
 
   def start_date(self, volumeid, start_date=None):
-    with sqlite3.connect(self.pulldb) as conn:
+    with sqlite3.connect(self.pulldb,
+                         detect_types=sqlite3.PARSE_DECLTYPES) as conn:
       if start_date:
         logging.debug('Setting start date for %d(%s).', volumeid, start_date)
         conn.execute('UPDATE pull_volumes SET start_date=? WHERE volume=?',
-                     (start_year, volumeid))
-      row = con.execute(
+                     (start_date, volumeid))
+      row = conn.execute(
         'SELECT start_date FROM pull_volumes WHERE volume=?', 
-        volumeid).fetchone()
+        (volumeid,)).fetchone()
     if row:
-      return row['start_date']
+      return row[0]
     return datetime.min
     
   def remove_volume(self, volumeid):
