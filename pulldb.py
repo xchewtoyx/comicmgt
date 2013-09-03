@@ -37,7 +37,7 @@ class PullList(object):
     logging.info('Creating pull_volumes table')
     with sqlite3.connect(self.pulldb) as conn:
       conn.execute("CREATE TABLE pull_volumes (volume INTEGER PRIMARY KEY, "
-                   "start_date TIMESTAMP)")
+                   "start_date TIMESTAMP, name TEXT)")
 
   def _create_seen_issues(self):
     'Create the seen_issues table.'
@@ -58,7 +58,7 @@ class PullList(object):
       except sqlite3.IntegrityError:
         logging.warn('Issue %d is already added', issueid)
 
-  def add_volume(self, volumeid):
+  def add_volume(self, volumeid, metadata=None):
     'Add a volume to the pull list.'
     logging.debug('Adding %d to volume list.', volumeid)
     with sqlite3.connect(self.pulldb) as conn:
@@ -67,8 +67,17 @@ class PullList(object):
           'INSERT INTO pull_volumes (volume) VALUES (?)', (volumeid,))
       except sqlite3.IntegrityError:
         logging.warn('Volume %d is already added', volumeid)
+      if metadata:
+        start_date = date(metadata.start_year, 1, 1)
+        conn.execute(
+          'UPDATE pull_volumes set name=?,start_date=? WHERE volume=?',
+          (metadata.name, start_date, volumeid))
 
   def start_date(self, volumeid, start_date=None):
+    '''Returns the volume start_date.
+
+    When provided start_date argument will set the date first.
+    '''
     with sqlite3.connect(self.pulldb,
                          detect_types=sqlite3.PARSE_DECLTYPES) as conn:
       if start_date:
@@ -84,8 +93,25 @@ class PullList(object):
       return row[0]
     return date.min
     
+  def volume_name(self, volumeid, name=None):
+    '''Returns the volume name.
+
+    When provided name argument will set the name first.
+    '''
+    with sqlite3.connect(self.pulldb,
+                         detect_types=sqlite3.PARSE_DECLTYPES) as conn:
+      if name:
+        logging.debug('Setting name for volume %d(%s).', volumeid, name)
+        conn.execute('UPDATE pull_volumes SET name=? WHERE volume=?',
+                     (name, volumeid))
+      row = conn.execute(
+        'SELECT name FROM pull_volumes WHERE volume=?', 
+        (volumeid,)).fetchone()
+    if row:
+      return row[0]
+
   def remove_volume(self, volumeid):
-    'Removing a volume to the pull list.'
+    'Removing a volume from the pull list.'
     logging.info('Removing %d and all related issues from pull list.', 
                  volumeid)
     with sqlite3.connect(self.pulldb) as conn:

@@ -74,7 +74,7 @@ class CheckShard(threading.Thread):
     issues = set()
     for issue in issue_details(shard_volumes, sort='store_date:desc'):
       if not isinstance(issue, pycomicvine.Issue):
-        logging.error('Issue has wrone type: %s, %r', type(issue), issue)
+        logging.error('Issue has wrong type: %s, %r', type(issue), issue)
         continue
       if issue.store_date and issue.store_date.date() < min_start:
         break
@@ -147,8 +147,10 @@ def add_volumes(pull_list):
   for add_vol in ARGS.add:
     volumes.update(add_vol.split(','))
   logging.info('Found %d volumes to add.', len(volumes))
-  for volume in volumes:
-    pull_list.add_volume(int(volume))
+  for volume in map(int, volumes):
+    volume_data = pycomicvine.Volume(volume, field_list=[
+        'id','name','start_year'])
+    pull_list.add_volume(volume, metadata=volume_data)
 
 def remove_volumes(pull_list):
   'Remove volumes from the pull list.'
