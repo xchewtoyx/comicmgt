@@ -2,6 +2,7 @@
 # Copyright 2013 Russell Heilling
 '''Access data for comics stored in calibre.'''
 import logging
+import os
 import sys
 
 # Calibre modules cannot be loaded outside the calibre environment so disable
@@ -16,6 +17,9 @@ import calibre.utils.logging as calibre_logging        #pylint: disable=F0401
 # Some modules get a copy of calibre.constants.DEBUG before we can set
 # it false. Override them here
 sys.modules[save_to_disk.__module__].DEBUG = False
+
+# Allow calibre debug environment to access local packages
+sys.path.extend(os.path.join(os.environ['HOME'], 'lib', 'python'))
 
 class CalibreDB(LibraryDatabase2):
   '''Interface to the calibre database.
