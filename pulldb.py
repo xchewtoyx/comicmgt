@@ -68,6 +68,19 @@ class PullList(object):
       except sqlite3.IntegrityError:
         logging.warn('Volume %d is already added', volumeid)
 
+  def start_date(self, volumeid, start_date=None):
+    with sqlite3.connect(self.pulldb) as conn:
+      if start_date:
+        logging.debug('Setting start date for %d(%s).', volumeid, start_date)
+        conn.execute('UPDATE pull_volumes SET start_date=? WHERE volume=?',
+                     (start_year, volumeid))
+      row = con.execute(
+        'SELECT start_date FROM pull_volumes WHERE volume=?', 
+        volumeid).fetchone()
+    if row:
+      return row['start_date']
+    return datetime.min
+    
   def remove_volume(self, volumeid):
     'Removing a volume to the pull list.'
     logging.info('Removing %d and all related issues from pull list.', 
