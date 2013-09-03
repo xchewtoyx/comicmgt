@@ -72,13 +72,16 @@ class CheckShard(threading.Thread):
         ).items() if k in shard_volumes)
     volumes = volume_details(shard_volumes)
     issues = set()
-    for issue in issue_details(shard_volumes, sort='store_date:desc'):
-      if not isinstance(issue, pycomicvine.Issue):
-        logging.error('Issue has wrong type: %s, %r', type(issue), issue)
-        continue
-      if issue.store_date and issue.store_date.date() < min_start:
-        break
-      issues.add(issue)
+    try:
+      for issue in issue_details(shard_volumes, sort='store_date:desc'):
+        if not isinstance(issue, pycomicvine.Issue):
+          logging.error('Issue has wrong type: %s, %r', type(issue), issue)
+          continue
+        if issue.store_date and issue.store_date.date() < min_start:
+          break
+        issues.add(issue)
+    except (ValueError, pycomicvine.InvalidResourceError)as err:
+      self.logger.error("Error retrieving issue details: %r", err)
     for volume in volumes:
       self.logger.debug('Checking volume %d', volume.id)
       seen_issues = set()
