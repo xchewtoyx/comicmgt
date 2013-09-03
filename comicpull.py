@@ -33,12 +33,12 @@ def pull_issues(pull_list):
   new_issues = []
   for volume in pull_list.volumes():
     logging.info('Checking volume %d for new issues', volume)
-    calibredb.search(query='identifiers:comicvine-volume:%d' % volume)
     seen_issues = pull_list.seen_issues(volume)
-    for issue in calibredb.get_data_as_dict():
-      issueid = issue['id']
+    calibredb.search(query='identifiers:comicvine-volume:%d' % volume)
+    for issue in calibredb.data:
+      issueid = issue[calibredb.FIELD_MAP['id']]
       identifiers = {}
-      for ident in issue['identifiers'].split(','):
+      for ident in issue[calibredb.FIELD_MAP['identifiers']].split(','):
         identifiers.update((ident.split(':'),))
       cvid = identifiers.get('comicvine')
       
