@@ -9,7 +9,7 @@ import time
 import threading
 
 import pycomicvine
-from pycomicvine import Issue, Issues, Volumes
+from pycomicvine import Issue, Issues, Volume, Volumes
 from pycomicvine.error import InvalidResourceError
 
 import api_key # pylint: disable=W0611
@@ -25,7 +25,7 @@ def issue_details(volumes, sort=None):
   volume_filter = '|'.join(str(volume) for volume in volumes)
   return pycomicvine.Issues(
     filter='volume:%s' % (volume_filter,), field_list=[
-      'id', 'volume', 'issue_number', 'store_date'],
+      'id', 'volume', 'issue_number', 'store_date', 'cover_date'],
     sort=sort)
 
 class CheckShard(threading.Thread):
@@ -45,14 +45,20 @@ class CheckShard(threading.Thread):
 
   def lookup_issues(self, min_start, issues):
     'Attempt to lookup issues of interest using the comicvine api.'
-    for issue in issue_details(self.shard_volumes, sort='store_date:desc'):
+    # Sort by cover date rather than store date as store date is not
+    # always populated
+    for issue in issue_details(self.shard_volumes, sort='cover_date:desc'):
       # If we retry, keep issues from the previous run
       if issue in issues:
         continue
       if not isinstance(issue, pycomicvine.Issue):
         logging.error('Issue has wrong type: %s, %r', type(issue), issue)
         continue
-      if issue.store_date and issue.store_date.date() < min_start:
+      issue_date = issue.store_date or issue.cover_date
+      if issue_date and issue_date.date() < min_start:
+        self.logger.info(
+          'Stopping search at %s [%s].  Earliest start date: %s',
+          issue.name, issue_date, min_start)
         break
       issues.add(issue)
     for volume in volume_details(self.shard_volumes):
@@ -75,6 +81,7 @@ class CheckShard(threading.Thread):
     self.logger.info('Processing %d volumes', len(self.shard_volumes))
     min_start = min(v for k,v in self.pull_list.volume_starts(
         ).items() if k in self.shard_volumes)
+    self.logger.info('Shard start date is %s', min_start)
     issues = set()
     for retry in range(1, self.retries+1):
       # Sometimes the comicvine API will throw an exception for a good query.

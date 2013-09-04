@@ -13,7 +13,6 @@ import cvdb
 from pulldb import PullList
 import logs
 
-
 args.add_argument('--pulldb', '-d', help='location of pull database',
                   default=os.path.join(os.environ['HOME'], '.pull.db'))
 args.add_argument('--list', '-l', help='List volumes on pull-list.',
@@ -32,6 +31,9 @@ args.add_argument('--remove', '-r', help='Remove a volume from the pull list',
                   action='append')
 ARGS = args.ARGS
 
+def issue_sort_key(issue):
+  return issue.store_date or issue.cover_date
+
 def check_missing(pull_list):
   'Check for issues found in comicvine but not the seen list.'
   logging.info('Looking for missing issues.')
@@ -47,15 +49,12 @@ def check_missing(pull_list):
   if missing_issues:
     logging.info('Found %d missing issues.', len(missing_issues))
   volume_start = pull_list.volume_starts()
-  for issue in sorted(missing_issues, key=lambda i: i.store_date.date()):
+  for issue in sorted(missing_issues, key=issue_sort_key):
     if not isinstance(issue, cvdb.Issue):
       logging.warn('Issue has wrong type: %s %r', type(issue), issue)
       continue
-    if issue.store_date:
-      issue_date = issue.store_date.date()
-    else:
-      issue_date = date.min
-    if issue_date > volume_start[issue.volume.id]:
+    issue_date = (issue.store_date or issue.cover_date).date()
+    if issue_date >= volume_start[issue.volume.id]:
       print 'Missing: %s #%s (%d/%d) [%s]' % (
         issue.volume.name, issue.issue_number, issue.volume.id, 
         issue.id, issue.store_date)
@@ -76,8 +75,8 @@ def check_expired(pull_list):
     fresh_volumes.add(issue.volume)
   expired_volumes = volumes - fresh_volumes
   for volume in expired_volumes:
-    logging.warn('Volume %s (%d) has no issues in last %d days.',
-                 volume.name, volume.id, int(ARGS.expire_limit))
+    print 'Volume %s (%d) has no issues in last %d days.' % (
+      volume.name, volume.id, int(ARGS.expire_limit))
 
 def do_list(pull_list):
   'List the titles currently on the pull list.'
