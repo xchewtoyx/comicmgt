@@ -21,6 +21,7 @@ from collections import OrderedDict
 
 import args
 from calibredb import CalibreDB, set_log_level
+import logs
 
 args.add_argument('--count', '-c', help='Number of issues to sync',
                   type=int, default='50')
@@ -28,7 +29,7 @@ args.add_argument('--toread', '-t', help='File containing issues to read',
                   type=bytes, default=None, required=True)
 args.add_argument('--syncdir', '-d', help='Directory to sync issues to',
                   type=bytes, default=None, required=True)
-args.add_argument('--verbose', '-v', help='Verbose logging.', action='count')
+
 ARGS = args.ARGS
 
 class FormatChangeError(Exception):
@@ -163,19 +164,6 @@ def rename_files(syncdir, toread):
 
 def main():
   'Read the toread list'
-  logger = logging.getLogger()
-  if ARGS.verbose:
-    if ARGS.verbose == 1:
-      set_log_level(logging.INFO)
-      logger.setLevel(logging.INFO)
-    else:
-      set_log_level(logging.DEBUG)
-      logger.setLevel(logging.DEBUG)
-  else:
-    # Need to set the calibre log level down when running under
-    # calibre-debug
-    set_log_level(logging.WARNING)
-
   toread = ToRead(ARGS.toread)
   syncdir = ExportDirectory(ARGS.syncdir)
   calibredb = CalibreDB()
@@ -194,4 +182,5 @@ def main():
 
 if __name__ == '__main__':
   args.parse_args()
+  logs.set_logging()
   main()
