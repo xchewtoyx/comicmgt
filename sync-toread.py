@@ -146,8 +146,6 @@ def rename_files(syncdir, toread):
   seen_idx = []
   for title in toread:
     if title not in syncdir:
-      # Entry has not been synced, end of loop
-      logging.info('Title %s has not been synced.', title)
       break
     index += 1
     index_match = oldindex.match(syncdir[title])
@@ -185,7 +183,6 @@ def main():
   syncdir.keep_files(wanted)
 
   # Export any files not already present
-  
   calibredb.export_files(wanted, syncdir)
 
   # Rename files so they sort in reading list order
