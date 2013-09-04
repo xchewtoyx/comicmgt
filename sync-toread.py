@@ -40,12 +40,21 @@ class ToRead(OrderedDict):
   'Read matching lines from the toread file into an ordered dict'
   title_pattern = re.compile(r'^(\d+)\s+(.*)$')
   
-  def __init__(self, toread_file):
+  def __init__(self, toread_file, validator=None):
     super(ToRead, self).__init__()
     with open(toread_file, 'r') as toread:
       for title in toread:
         title_match = self.title_pattern.match(title)
         if title_match:
+          if validator:
+            try:
+              validator(int(title_match.group(1)))
+            except TypeError:
+              # Raised when validator is not callable
+              raise
+            except Exception as err:
+              logging.warn('IssueID not valid in line: %s', title)
+              continue
           self[title_match.group(1)] = title_match.group(2)
           logging.debug('Found title %s(%s)', title_match.group(2), 
                         title_match.group(1))
@@ -138,6 +147,7 @@ def rename_files(syncdir, toread):
   for title in toread:
     if title not in syncdir:
       # Entry has not been synced, end of loop
+      logging.info('Title %s has not been synced.', title)
       break
     index += 1
     index_match = oldindex.match(syncdir[title])
@@ -164,9 +174,9 @@ def rename_files(syncdir, toread):
 
 def main():
   'Read the toread list'
-  toread = ToRead(ARGS.toread)
-  syncdir = ExportDirectory(ARGS.syncdir)
   calibredb = CalibreDB()
+  toread = ToRead(ARGS.toread, validator=calibredb.issue)
+  syncdir = ExportDirectory(ARGS.syncdir)
 
   # Grab the ids of the first count entries
   wanted = toread.keys()[:ARGS.count]
@@ -175,6 +185,7 @@ def main():
   syncdir.keep_files(wanted)
 
   # Export any files not already present
+  
   calibredb.export_files(wanted, syncdir)
 
   # Rename files so they sort in reading list order
