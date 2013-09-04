@@ -14,6 +14,10 @@ def register_logger(level_setter):
   LEVEL_SETTERS.add(level_setter)
 
 def set_logging():
+  handler = logging.StreamHandler()
+  handler.setFormatter(logging.Formatter(
+      '%(asctime)s %(levelname)s:%(name)s %(message)s'))
+  logging.getLogger().addHandler(handler)
   level = logging.WARN
   if ARGS.verbose > 1:
     level = logging.DEBUG
