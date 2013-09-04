@@ -157,8 +157,9 @@ class StreamClassifier(object):
       if not match:
         raise LineError(line)
       issue = match.group(1)
-      metadata = self.calibredb.issue(int(issue))
-      if not metadata:
+      try:
+        metadata = self.calibredb.issue(int(issue))
+      except ValueError:
         raise DatabaseError(line)
       self.classify(metadata)
     except (LineError, DatabaseError) as error:
