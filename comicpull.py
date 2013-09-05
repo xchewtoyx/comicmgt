@@ -64,7 +64,7 @@ def pull_issues(pull_list):
   # Check database for new issues for pull volumes
   new_issues = set()
   if ARGS.volume:
-    volumes = ARGS.volume
+    volumes = map(int, ARGS.volume)
   else:
     volumes = pull_list.volumes()
   for volume in volumes:
