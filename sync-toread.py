@@ -13,7 +13,9 @@ The toread file shold be in the format:
 The content of the title field are not used.  This format is
 compatible with todo.txt.
 """
+from difflib import SequenceMatcher
 import logging
+from math import ceil
 import os
 import re
 
@@ -138,37 +140,110 @@ class ExportDirectory(dict):
     'Return list of ids from wanted list for which there are no files present.'
     return list(set(wanted) - set(self.keys()))
 
+def file_index(filename):
+  'Find file index in filename if present.'
+  index_match = re.match(r'(\d{4}(?:\.\d{2})?) ', filename)
+  if index_match:
+    index = index_match.group(1)
+    return float(index)
+
+def ordered_files(syncdir, toread):
+  'Find the largest set of files in the correct order.'
+  # Create a dict of files in syncdir with a valid index
+  # In case of index clashes, the first candidate wins
+  valid_files = {}
+  for calibreid, filename in syncdir.items():
+    index = file_index(filename)
+    if index and index not in valid_files:
+      valid_files[index] = calibreid
+  # Create lists to compare to find the largest ordered subset
+  synclist = [valid_files[index] for index in sorted(valid_files.keys())]
+  toreadlist = toread.keys()[:ARGS.count]
+  matcher = SequenceMatcher(None, toreadlist, synclist)
+  ordered_ids = []
+  for i, j, count in matcher.get_matching_blocks():
+    ordered_ids.extend(toreadlist[i:i+count])
+  logging.debug('Longest sorted subset: %r', [
+      syncdir[title] for title in ordered_ids])
+  return ordered_ids
+
+def new_indexes(start, finish, titles):
+  'Find new indexes for titles that fit between start and finish.'
+  logging.debug('Inserting %d titles between %s and %s', 
+                len(titles), start, finish)
+  indexes = []
+  if not finish:
+    # Simplest case - just append titles with increasing integer indexes
+    logging.debug('Appending %d titles to end of list', len(titles))
+    finish = int(start) + len(titles) + 1
+  if int(finish) - int(start) > len(titles):
+    # enough room between start and finish to give each title an integer index
+    first_index = int(start) + 1
+    indexes = ['%07.2f' % float(i) for i in range(
+        first_index, first_index+len(titles))]
+  else:
+    # Fit the titles between the start and finish with even spacing.
+    # Round issues that are near an integer to the whole number to try
+    # and avoid everything going fractional...
+    interval = (finish - start) / (len(titles)+1)
+    logging.debug('Stepping from %r to %r with interval %r', start, 
+                  finish, interval)
+    index = start
+    for title in titles:
+      index += interval
+      int_next = int(index+interval)
+      if index+interval > int_next and int_next > int(index):
+        # We are just about to cross an integer boundary.  Put the
+        # issue on the boundary rather than just past it.
+        indexes.append('%07.2f' % float(int_next))
+      else:
+        indexes.append('%07.2f' % index)
+  return zip(indexes, titles)
 
 def rename_files(syncdir, toread):
   'Rename files so that the filenames sort in todolist order.'
-  oldindex = re.compile(r'(\d{4}) ')
-  index = 0
-  seen_idx = []
-  for title in toread:
-    if title not in syncdir:
-      break
-    index += 1
-    index_match = oldindex.match(syncdir[title])
-    if index_match:
-      file_index = int(index_match.group(1))
-      if file_index >= index and file_index not in seen_idx:
-        logging.debug('File has suitable index, ignoring %s (i:%d, s:%r)', 
-                      syncdir[title], index, seen_idx)
-        seen_idx.append(file_index)
-        index = file_index
-        continue
-      logging.debug('File has unsuitable index, renaming %s (i:%d, s:%r)', 
-                    syncdir[title], index, seen_idx)
-    newname = '%04d %s (%s).%s' % (index, toread[title], title, 
-                                   syncdir.format[title])
+  # Get ordered files
+  good_files = ordered_files(syncdir, toread)
+  # iterate through todo items
+  last_index = 0
+  rename_queue = []
+  reindex_queue = []
+  for title in toread.keys()[:ARGS.count]:
+    #  if item in good_files reindex any pending files
+    if title in good_files:
+      current_index = file_index(syncdir[title])
+      logging.debug('File has suitable index, ignoring %s (i:%d)', 
+                    syncdir[title], current_index)
+      if last_index > current_index:
+        logging.warn('something weird going on.. %f > %f',
+                     last_index, current_index)
+      if reindex_queue:
+        rename_queue.extend(new_indexes(last_index, current_index, 
+                                        reindex_queue))
+        reindex_queue = []
+      last_index = current_index
+      continue
+    else:
+      logging.debug('Adding %s to reindex queue', syncdir[title])
+      reindex_queue.append(title)
+  # Append any remaning files in the reindex queue to the rename queue
+  # These are going after the issue so we can let new_indexes know
+  # just to assign them integers
+  if reindex_queue:
+    rename_queue.extend(new_indexes(last_index, None, reindex_queue))
+    
+  for index, title in rename_queue:
+    newname = '%s %s (%s).%s' % (index, toread[title], title, 
+                                 syncdir.format[title])
     # Remove dangerous characters from title
-    newname = re.sub(r'[\'/"!]', r'_', newname)
+    newname = re.sub(r'[:\'/"!]', r'_', newname)
+    if syncdir[title] == newname:
+      continue
     logging.debug('Renaming %s to %s', syncdir[title], newname)
     try:
       syncdir[title] = newname
     except OSError:
       logging.warn(OSError)
-    seen_idx.append(index)
 
 def main():
   'Read the toread list'
