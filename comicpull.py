@@ -21,6 +21,8 @@ args.add_argument('--todo_file', help='Location of todo.txt file',
                                        'Dropbox/todo/todo.txt'))
 args.add_argument('--pulldb', '-p', help='Location of pull database',
                   default=os.path.join(os.environ['HOME'], '.pull.db'))
+args.add_argument('--volume', help='Volume to pull',
+                  action='append')
 args.add_argument('--workers', help='Number of worker threads.',
                   default=1, type=int)
 args.add_argument('--shard', help='The task number to run',
@@ -61,7 +63,11 @@ def pull_issues(pull_list):
   calibredb = CalibreDB()
   # Check database for new issues for pull volumes
   new_issues = set()
-  for volume in pull_list.volumes():
+  if ARGS.volume:
+    volumes = ARGS.volume
+  else:
+    volumes = pull_list.volumes()
+  for volume in volumes:
     if sharded_to_us(volume):
       new_issues.update(
         check_new(volume, pull_list=pull_list, calibredb=calibredb))
