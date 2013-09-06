@@ -142,7 +142,7 @@ class ExportDirectory(dict):
 
 def file_index(filename):
   'Find file index in filename if present.'
-  index_match = re.match(r'(\d{4}(?:\.\d{2})?) ', filename)
+  index_match = re.match(r'(\d{4}(?:\.\d{2,3})?) ', filename)
   if index_match:
     index = index_match.group(1)
     return float(index)
