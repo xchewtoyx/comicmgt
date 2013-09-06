@@ -174,36 +174,34 @@ def new_indexes(start, finish, titles):
   indexes = []
   if not finish:
     # Simplest case - just append titles with increasing integer indexes
+    # Space is not an issue so leave gap for future reshuffles
     logging.debug('Appending %d titles to end of list', len(titles))
-    finish = int(start) + len(titles) + 1
-  if int(finish) - int(start) > len(titles):
-    # enough room between start and finish to give each title an integer index
-    first_index = int(start) + 1
-    indexes = ['%07.2f' % float(i) for i in range(
-        first_index, first_index+len(titles))]
-  else:
-    # Fit the titles between the start and finish with even spacing.
-    # Round issues that are near an integer to the whole number to try
-    # and avoid everything going fractional...
-    interval = (finish - start) / (len(titles)+1)
-    logging.debug('Stepping from %r to %r with interval %r', start, 
-                  finish, interval)
-    index = start
-    for title in titles:
-      index += interval
-      int_next = int(index+interval)
-      if index+interval > int_next and int_next > int(index):
-        # We are just about to cross an integer boundary.  Put the
-        # issue on the boundary rather than just past it.
-        indexes.append('%07.2f' % float(int_next))
-      else:
-        indexes.append('%07.2f' % index)
+    finish = int(start) + 10 * len(titles)
+  # Fit the titles between the start and finish with even spacing.
+  # Round issues that are near an integer to the whole number to try
+  # and avoid everything going fractional...
+  interval = (finish - start) / (len(titles)+1)
+  logging.debug('Stepping from %r to %r with interval %r', start, 
+                finish, interval)
+  index = start
+  for title in titles:
+    index += interval
+    int_next = int(index+interval)
+    if index+interval > int_next and int_next > int(index):
+      # We are just about to cross an integer boundary.  Put the
+      # issue on the boundary rather than just past it.
+      indexes.append('%08.3f' % float(int_next))
+    else:
+      indexes.append('%08.3f' % index)
   return zip(indexes, titles)
 
 def rename_files(syncdir, toread):
   'Rename files so that the filenames sort in todolist order.'
   # Get ordered files
   good_files = ordered_files(syncdir, toread)
+  if len(good_files) < (len(syncdir)/2):
+    logging.warn('Renaming more than 50%% of files (%d/%d)',
+                 len(good_files), len(syncdir))
   # iterate through todo items
   last_index = 0
   rename_queue = []
@@ -214,9 +212,13 @@ def rename_files(syncdir, toread):
       current_index = file_index(syncdir[title])
       logging.debug('File has suitable index, ignoring %s (i:%d)', 
                     syncdir[title], current_index)
-      if last_index > current_index:
-        logging.warn('something weird going on.. %f > %f',
+      if last_index >= current_index:
+        # If last_index is >= current index then something has gone wrong.
+        # Empty the good_files list to force a reindex of the remaining 
+        # titles.
+        logging.warn('Cannot fit index between [%f:%f]',
                      last_index, current_index)
+        good_files = []
       if reindex_queue:
         rename_queue.extend(new_indexes(last_index, current_index, 
                                         reindex_queue))
