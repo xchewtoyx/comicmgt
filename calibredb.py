@@ -66,7 +66,7 @@ class CalibreDB(LibraryDatabase2):
         logging.error('Unable to export %s(%s): %s',
                       title, calibre_id, traceback)
       else:
-        logging.debug('Exported %s(%s)', title, calibre_id)
+        logging.info('Exported %s(%s)', title, calibre_id)
       return not(failed)
 
     opts = self.ExportFile()

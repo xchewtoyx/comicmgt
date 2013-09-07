@@ -36,7 +36,9 @@ ARGS = args.ARGS
 
 class FormatChangeError(Exception):
   'Exception raised when attempt made to change format during rename'
-  pass
+
+class ReindexError(Exception):
+  'Exception raised when reindexing is not possible'
 
 class ToRead(OrderedDict):
   'Read matching lines from the toread file into an ordered dict'
@@ -126,8 +128,9 @@ class ExportDirectory(dict):
       id_match = self.title_pattern.search(entry)
       if id_match:
         calibre_id = id_match.group(1)
-        self[calibre_id] = entry
-        logging.debug('Found file %s(%s)', entry, id_match.group(1))
+        if calibre_id not in self:
+          logging.debug('Found file %s(%s)', entry, id_match.group(1))
+          self[calibre_id] = entry
 
   def keep_files(self, keep_ids):
     'Remove any files that are not in the list of ids to keep.'
@@ -159,12 +162,13 @@ def ordered_files(syncdir, toread):
   # Create lists to compare to find the largest ordered subset
   synclist = [valid_files[index] for index in sorted(valid_files.keys())]
   toreadlist = toread.keys()[:ARGS.count]
+  logging.debug('Comparing %r and %r', synclist, toreadlist)
   matcher = SequenceMatcher(None, toreadlist, synclist)
   ordered_ids = []
   for i, j, count in matcher.get_matching_blocks():
     ordered_ids.extend(toreadlist[i:i+count])
-  logging.debug('Longest sorted subset: %r', [
-      syncdir[title] for title in ordered_ids])
+  logging.debug('Longest sorted subset: %r', ([
+      syncdir[title] for title in ordered_ids],))
   return ordered_ids
 
 def new_indexes(start, finish, titles):
@@ -176,11 +180,14 @@ def new_indexes(start, finish, titles):
     # Simplest case - just append titles with increasing integer indexes
     # Space is not an issue so leave gap for future reshuffles
     logging.debug('Appending %d titles to end of list', len(titles))
-    finish = int(start) + 10 * len(titles)
+    finish = ceil(start) + 10 * len(titles)
   # Fit the titles between the start and finish with even spacing.
   # Round issues that are near an integer to the whole number to try
   # and avoid everything going fractional...
   interval = (finish - start) / (len(titles)+1)
+  if round(finish,3) <= round(start,3) or interval < 1e-3:
+    raise ReindexError('Unable in insert %d issues between %f and %f (%f)' % 
+                       (len(titles), start, finish, interval))
   logging.debug('Stepping from %r to %r with interval %r', start, 
                 finish, interval)
   index = start
@@ -199,9 +206,14 @@ def rename_files(syncdir, toread):
   'Rename files so that the filenames sort in todolist order.'
   # Get ordered files
   good_files = ordered_files(syncdir, toread)
-  if len(good_files) < (len(syncdir)/2):
-    logging.warn('Renaming more than 50%% of files (%d/%d)',
-                 len(good_files), len(syncdir))
+  good_ratio = float(len(good_files)) / len(syncdir)
+  level = logging.INFO
+  if good_ratio < 0.5:
+    level = logging.WARN
+  logging.debug('%d good %d total', len(good_files), len(syncdir))
+  logging.log(
+    level, 'Renaming %.2f%% of files (%d/%d)',
+    100*(1-good_ratio), len(syncdir) - len(good_files), len(syncdir))
   # iterate through todo items
   last_index = 0
   rename_queue = []
@@ -212,17 +224,18 @@ def rename_files(syncdir, toread):
       current_index = file_index(syncdir[title])
       logging.debug('File has suitable index, ignoring %s (i:%d)', 
                     syncdir[title], current_index)
-      if last_index >= current_index:
-        # If last_index is >= current index then something has gone wrong.
-        # Empty the good_files list to force a reindex of the remaining 
-        # titles.
-        logging.warn('Cannot fit index between [%f:%f]',
-                     last_index, current_index)
-        good_files = []
       if reindex_queue:
-        rename_queue.extend(new_indexes(last_index, current_index, 
-                                        reindex_queue))
-        reindex_queue = []
+        try:
+          reindex_entries = new_indexes(last_index, current_index, 
+                                        reindex_queue)
+        except ReindexError as err:
+          logging.error('Error reindexing files: %s', err.message)
+          good_files = []
+        else:
+          logging.debug('New indices: %r', [
+              (index, toread[title]) for index, title in reindex_entries])
+          rename_queue.extend(reindex_entries)
+          reindex_queue = []
       last_index = current_index
       continue
     else:
@@ -241,7 +254,7 @@ def rename_files(syncdir, toread):
     newname = re.sub(r'[:\'/"!]', r'_', newname)
     if syncdir[title] == newname:
       continue
-    logging.debug('Renaming %s to %s', syncdir[title], newname)
+    logging.info('Renaming %s to %s', syncdir[title], newname)
     try:
       syncdir[title] = newname
     except OSError:
