@@ -174,16 +174,16 @@ def ordered_files(syncdir, toread):
 
 def new_indexes(start, finish, titles):
   'Find new indexes for titles that fit between start and finish.'
-  start = round(start, 3)
-  finish = round(finish, 3)
-  logging.debug('Inserting %d titles between %08.3f and %08.3f', 
-                len(titles), start, finish)
-  indexes = []
   if not finish:
     # Simplest case - just append titles with increasing integer indexes
     # Space is not an issue so leave gap for future reshuffles
     logging.debug('Appending %d titles to end of list', len(titles))
     finish = ceil(start) + 10 * len(titles)
+  start = round(start, 3)
+  finish = round(finish, 3)
+  logging.debug('Inserting %d titles between %08.3f and %08.3f', 
+                len(titles), start, finish)
+  indexes = []
   # Fit the titles between the start and finish with even spacing.
   # Round issues that are near an integer to the whole number to try
   # and avoid everything going fractional...
