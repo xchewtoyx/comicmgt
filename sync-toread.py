@@ -197,7 +197,7 @@ def new_indexes(start, finish, titles):
   for title in titles:
     if floor(index)+1 < index+interval:
       # About to cross an integer boundary.  Align with the boundary.
-      index = floor(index) + 1
+      index = floor(index+interval)
     else:
       index += interval
     indexes.append('%08.3f' % index)
