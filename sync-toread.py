@@ -175,7 +175,7 @@ def ordered_files(syncdir, toread):
 def new_indexes(start, finish, titles):
   'Find new indexes for titles that fit between start and finish.'
   start = round(start, 3)
-  finish = round(start, 3)
+  finish = round(finish, 3)
   logging.debug('Inserting %d titles between %08.3f and %08.3f', 
                 len(titles), start, finish)
   indexes = []
