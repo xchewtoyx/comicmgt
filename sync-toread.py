@@ -186,7 +186,7 @@ def new_indexes(start, finish, titles):
   # Round issues that are near an integer to the whole number to try
   # and avoid everything going fractional...
   interval = (finish - start) / (len(titles)+1)
-  if round(finish,3) <= round(start,3) or interval < 1e-2:
+  if round(finish,3) <= round(start,3) or interval < 1e-3:
     raise ReindexError('Unable in insert %d issues between %f and %f (%f)' % 
                        (len(titles), start, finish, interval))
   logging.debug('Stepping from %r to %r with interval %r', start, 
@@ -194,7 +194,7 @@ def new_indexes(start, finish, titles):
   index = start
   for title in titles:
     index += interval
-    if index - int(index) < interval:
+    if round(index - int(index), 3) < interval:
       # We have just crossed an integer boundary.  Put the
       # issue on the boundary rather than just past it.
       indexes.append('%08.3f' % floor(index))
