@@ -9,6 +9,7 @@ import sys
 import args
 from streams import StreamClassifier
 import calibredb
+import logs
 
 args.add_argument('--archive', '-a', help='Archive file before sorting',
                   action='store_true')
@@ -18,8 +19,6 @@ args.add_argument('--infile', '-i', help='path to input file',
                   default=sys.stdin)
 args.add_argument('--outfile', '-o', help='path to output file',
                   default=sys.stdout)
-args.add_argument('--verbose', '-v', help='Enable verbose logging',
-                  action='count')
 ARGS = args.ARGS
 
 def archive():
@@ -34,19 +33,6 @@ def archive():
 
 def main():
   'Setup environment and run classification.'
-  logger = logging.getLogger()
-  if ARGS.verbose:
-    if ARGS.verbose >= 2:
-      calibredb.set_log_level(logging.DEBUG)
-      logger.setLevel(logging.DEBUG)
-    else:
-      calibredb.set_log_level(logging.INFO)
-      logger.setLevel(logging.INFO)
-  else:
-    # When running under calibre-debug the default log level needs to
-    # be reduced.
-    calibredb.set_log_level(logging.WARNING)
-
   classifier = StreamClassifier()
   classifier.add_streams(catchup_streams=ARGS.catchup_stream, 
                          publisher_streams=ARGS.publisher)
@@ -73,6 +59,7 @@ def main():
 
 if __name__ == '__main__':
   args.parse_args()
+  logs.set_logging()
   try:
     main()
   except KeyboardInterrupt:
