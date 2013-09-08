@@ -15,7 +15,7 @@ compatible with todo.txt.
 """
 from difflib import SequenceMatcher
 import logging
-from math import ceil
+from math import ceil, floor
 import os
 import re
 
@@ -159,10 +159,11 @@ def ordered_files(syncdir, toread):
     index = file_index(filename)
     if index and index not in valid_files:
       valid_files[index] = calibreid
-  # Create lists to compare to find the largest ordered subset
+  # Create lists to compare to find the largest common sequence
   synclist = [valid_files[index] for index in sorted(valid_files.keys())]
   toreadlist = toread.keys()[:ARGS.count]
   logging.debug('Comparing %r and %r', synclist, toreadlist)
+  # Use diffutils.SequenceMatcher to do the heavy lifting
   matcher = SequenceMatcher(None, toreadlist, synclist)
   ordered_ids = []
   for i, j, count in matcher.get_matching_blocks():
@@ -185,7 +186,7 @@ def new_indexes(start, finish, titles):
   # Round issues that are near an integer to the whole number to try
   # and avoid everything going fractional...
   interval = (finish - start) / (len(titles)+1)
-  if round(finish,3) <= round(start,3) or interval < 1e-3:
+  if round(finish,3) <= round(start,3) or interval < 1e-2:
     raise ReindexError('Unable in insert %d issues between %f and %f (%f)' % 
                        (len(titles), start, finish, interval))
   logging.debug('Stepping from %r to %r with interval %r', start, 
@@ -193,14 +194,30 @@ def new_indexes(start, finish, titles):
   index = start
   for title in titles:
     index += interval
-    int_next = int(index+interval)
-    if index+interval > int_next and int_next > int(index):
-      # We are just about to cross an integer boundary.  Put the
+    if index - int(index) < interval:
+      # We have just crossed an integer boundary.  Put the
       # issue on the boundary rather than just past it.
-      indexes.append('%08.3f' % float(int_next))
+      indexes.append('%08.3f' % floor(index))
     else:
       indexes.append('%08.3f' % index)
   return zip(indexes, titles)
+
+
+def process_rename_queue(syncdir, toread, rename_queue):
+  # Now handle the actual renaming
+  for index, title in rename_queue:
+    newname = '%s %s (%s).%s' % (index, toread[title], title, 
+                                 syncdir.format[title])
+    # Remove dangerous characters from title
+    newname = re.sub(r'[:\'/"!]', r'_', newname)
+    if syncdir[title] == newname:
+      continue
+    logging.info('Renaming %s to %s', syncdir[title], newname)
+    try:
+      syncdir[title] = newname
+    except OSError:
+      logging.warn(OSError)
+
 
 def rename_files(syncdir, toread):
   'Rename files so that the filenames sort in todolist order.'
@@ -229,6 +246,9 @@ def rename_files(syncdir, toread):
           reindex_entries = new_indexes(last_index, current_index, 
                                         reindex_queue)
         except ReindexError as err:
+          # If there is an error indexing the files, abort the attempt
+          # to keep the same indexes and just renumber the rest of the
+          # files.
           logging.error('Error reindexing files: %s', err.message)
           good_files = []
         else:
@@ -242,23 +262,12 @@ def rename_files(syncdir, toread):
       logging.debug('Adding %s to reindex queue', syncdir[title])
       reindex_queue.append(title)
   # Append any remaning files in the reindex queue to the rename queue
-  # These are going after the issue so we can let new_indexes know
-  # just to assign them integers
+  # These are going on the end so we can let new_indexes have as much
+  # room as it wants
   if reindex_queue:
     rename_queue.extend(new_indexes(last_index, None, reindex_queue))
     
-  for index, title in rename_queue:
-    newname = '%s %s (%s).%s' % (index, toread[title], title, 
-                                 syncdir.format[title])
-    # Remove dangerous characters from title
-    newname = re.sub(r'[:\'/"!]', r'_', newname)
-    if syncdir[title] == newname:
-      continue
-    logging.info('Renaming %s to %s', syncdir[title], newname)
-    try:
-      syncdir[title] = newname
-    except OSError:
-      logging.warn(OSError)
+  process_rename_queue(syncdir, toread, rename_queue)
 
 def main():
   'Read the toread list'
