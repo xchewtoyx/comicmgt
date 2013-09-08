@@ -174,7 +174,9 @@ def ordered_files(syncdir, toread):
 
 def new_indexes(start, finish, titles):
   'Find new indexes for titles that fit between start and finish.'
-  logging.debug('Inserting %d titles between %s and %s', 
+  start = round(start, 3)
+  finish = round(start, 3)
+  logging.debug('Inserting %d titles between %08.3f and %08.3f', 
                 len(titles), start, finish)
   indexes = []
   if not finish:
@@ -186,20 +188,19 @@ def new_indexes(start, finish, titles):
   # Round issues that are near an integer to the whole number to try
   # and avoid everything going fractional...
   interval = (finish - start) / (len(titles)+1)
-  if round(finish,3) <= round(start,3) or interval < 1e-3:
+  if finish <= start or interval < 1e-3:
     raise ReindexError('Unable in insert %d issues between %f and %f (%f)' % 
                        (len(titles), start, finish, interval))
   logging.debug('Stepping from %r to %r with interval %r', start, 
                 finish, interval)
   index = start
   for title in titles:
-    index += interval
-    if round(index - int(index), 3) < interval:
-      # We have just crossed an integer boundary.  Put the
-      # issue on the boundary rather than just past it.
-      indexes.append('%08.3f' % floor(index))
+    if floor(index)+1 < index+interval:
+      # About to cross an integer boundary.  Align with the boundary.
+      index = floor(index) + 1
     else:
-      indexes.append('%08.3f' % index)
+      index += interval
+    indexes.append('%08.3f' % index)
   return zip(indexes, titles)
 
 
