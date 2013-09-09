@@ -49,19 +49,20 @@ def compare_stats(reference, candidate):
   if new_streams:
     return 'new stream encountered: %r' % new_streams
   # 2. Check each stream.  If the new.mean differs from ref.mean by
-  # more than ref.std.
+  # more than ref.std/2.
   for stream in reference:
+    threshold = reference[stream].std()/2
     stream_variation = abs(candidate[stream].mean()-reference[stream].mean())
-    if stream_variation > reference[stream].std():
+    if stream_variation > threshold:
       return 'Mean interval for stream %s exceeds threshold (%.03f/%.03f)' % (
-        stream, stream_variation, reference[stream].std())
+        stream, stream_variation, threshold)
 
 def main():
   reference = stream_stats(ReadingList(ARGS.reference).list_issues())
   for stream, data in reference.items():
     logging.info('%s: %d/%.03f/%.03f (len/avg/std)', stream, len(data), 
                  data.mean(), data.std())
-  else:
+  if ARGS.candidate:
     candidate = stream_stats(ReadingList(ARGS.candidate).list_issues())
     install_candidate = compare_stats(reference, candidate)
     if install_candidate:
