@@ -18,9 +18,6 @@ import calibre.utils.logging as calibre_logging        #pylint: disable=F0401
 # it false. Override them here
 sys.modules[save_to_disk.__module__].DEBUG = False
 
-# Allow calibre debug environment to access local packages
-sys.path.extend(os.path.join(os.environ['HOME'], 'lib', 'python'))
-
 class CalibreDB(LibraryDatabase2):
   '''Interface to the calibre database.
 
