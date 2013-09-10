@@ -50,6 +50,7 @@ def compare_stats(reference, candidate):
   # 1. Install if there are differences between the sets in the files
   new_streams = set(candidate.keys()) ^ set(reference.keys())
   if new_streams:
+    logging.info('Stream differences encountered: %r', new_streams)
     return 'Stream differences encountered: %r' % new_streams
   # 2. Check each stream.  Install the candidate if candidate.median
   # differs from reference.mean by more than 0.675 * reference.std.
@@ -63,6 +64,9 @@ def compare_stats(reference, candidate):
     stream_variation = abs(median(candidate[stream])-
                            mean(reference[stream]))
     if stream_variation > threshold:
+      logging.info(
+        'Median interval for stream %s exceeds threshold (%.03f/%.03f)' % (
+          stream, stream_variation, threshold))
       return (
         'Median interval for stream %s exceeds threshold (%.03f/%.03f)' % (
           stream, stream_variation, threshold))
