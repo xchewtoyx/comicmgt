@@ -10,7 +10,7 @@ import args
 import logs
 from toread import ReadingList
 
-import numpy
+from numpy import array, mean, median, std
 
 args.add_argument('--reference', '-r', help='Path to reference toread file.')
 args.add_argument('--candidate', '-c', help='Path to candidate file.', 
@@ -23,7 +23,7 @@ ARGS = args.ARGS
 def enumerate_streams(titles):
   last_index = defaultdict(int)
   stream_intervals = defaultdict(list)
-  stream_pattern = re.compile(r'\+([\w]+)(?:$|\s)')
+  stream_pattern = re.compile(r'\s\+([\w]+)(?:$|\s)')
   for index, (calibreid, title) in enumerate(titles):
     stream_match = stream_pattern.search(title)
     stream = ''
@@ -39,7 +39,10 @@ def stream_stats(titles):
   stats = {}
   stream_intervals = enumerate_streams(titles)
   for stream in stream_intervals:
-    stats[stream] = numpy.array(stream_intervals[stream])
+    stats[stream] = array(stream_intervals[stream])
+  for stream, data in stats.items():
+    logging.info('%s: %d/%.03f/%.03f/%.03f (len/avg/median/std)', 
+                 stream, len(data), mean(data), median(data), std(data))
   return stats
 
 def compare_stats(reference, candidate):
@@ -47,22 +50,28 @@ def compare_stats(reference, candidate):
   # 1. Install if there are differences between the sets in the files
   new_streams = set(candidate.keys()) ^ set(reference.keys())
   if new_streams:
-    return 'new stream encountered: %r' % new_streams
-  # 2. Check each stream.  If the new.mean differs from ref.mean by
-  # more than ref.std/2.
+    return 'Stream differences encountered: %r' % new_streams
+  # 2. Check each stream.  Install the candidate if candidate.median
+  # differs from reference.mean by more than 0.675 * reference.std.
+  # In a normal distribution 50% of samples are within 0.675
+  # sigma. For this to hold true the median must be somewhere in the
+  # -0.675s<median<0.675s range.  If the new median is outside this
+  # range then it is pretty clear that the distribution is skewed and
+  # a resort is needed.
   for stream in reference:
-    threshold = reference[stream].std()/2
-    stream_variation = abs(candidate[stream].mean()-reference[stream].mean())
+    threshold = 0.675 * reference[stream].std()
+    stream_variation = abs(median(candidate[stream])-
+                           mean(reference[stream]))
     if stream_variation > threshold:
-      return 'Mean interval for stream %s exceeds threshold (%.03f/%.03f)' % (
-        stream, stream_variation, threshold)
+      return (
+        'Median interval for stream %s exceeds threshold (%.03f/%.03f)' % (
+          stream, stream_variation, threshold))
 
 def main():
+  logging.info('Processing reference file (%r)', ARGS.reference)
   reference = stream_stats(ReadingList(ARGS.reference).list_issues())
-  for stream, data in reference.items():
-    logging.info('%s: %d/%.03f/%.03f (len/avg/std)', stream, len(data), 
-                 data.mean(), data.std())
   if ARGS.candidate:
+    logging.info('Processing candidate file (%r)', ARGS.candidate)
     candidate = stream_stats(ReadingList(ARGS.candidate).list_issues())
     install_candidate = compare_stats(reference, candidate)
     if install_candidate:
