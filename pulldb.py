@@ -19,6 +19,7 @@ class PullList(object):
   the issues already pulled.
   '''
   def __init__(self, pulldb):
+    logging.debug('Connecting to pull database at %r', pulldb)
     self.pulldb = pulldb
     self._check_tables()
 
