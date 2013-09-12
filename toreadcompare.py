@@ -41,7 +41,7 @@ def stream_stats(titles):
   for stream in stream_intervals:
     stats[stream] = array(stream_intervals[stream])
   for stream, data in stats.items():
-    logging.info('%s: %d/%.03f/%.03f/%.03f (len/avg/median/std)', 
+    logging.info('[%s]: %d/%.03f/%.03f/%.03f (len/avg/median/std)', 
                  stream, len(data), mean(data), median(data), std(data))
   return stats
 
@@ -64,12 +64,10 @@ def compare_stats(reference, candidate):
     stream_variation = abs(median(candidate[stream])-
                            mean(reference[stream]))
     if stream_variation > threshold:
-      logging.info(
-        'Median interval for stream %s exceeds threshold (%.03f/%.03f)' % (
-          stream, stream_variation, threshold))
-      return (
-        'Median interval for stream %s exceeds threshold (%.03f/%.03f)' % (
-          stream, stream_variation, threshold))
+      message = ('Median interval for stream %s exceeds threshold '
+                 '(%.03f/%.03f)' % (stream, stream_variation, threshold))
+      logging.info(message)
+      return message
 
 def main():
   logging.info('Processing reference file (%r)', ARGS.reference)
