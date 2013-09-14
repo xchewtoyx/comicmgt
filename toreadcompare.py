@@ -53,7 +53,6 @@ def compare_stats(reference, candidate):
   # 1. Install if there are differences between the sets in the files
   new_streams = set(candidate.keys()) ^ set(reference.keys())
   if new_streams:
-    
     logging.info('Stream differences encountered: %r', new_streams)
     return 'Stream differences encountered: %r' % new_streams
 
@@ -84,8 +83,8 @@ def compare_stats(reference, candidate):
         'Maximum interval for stream %s exceeds twice median reference '
         'interval (%.03f/%.03f)' % (stream, candidate_max, threshold))
 
-    [logging.info(r) for r in reason]
-    return reason
+  [logging.info(r) for r in reason]
+  return reason
 
 def main():
   logging.info('Processing reference file (%r)', ARGS.reference)
