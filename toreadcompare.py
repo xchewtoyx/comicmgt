@@ -41,33 +41,51 @@ def stream_stats(titles):
   for stream in stream_intervals:
     stats[stream] = array(stream_intervals[stream])
   for stream, data in stats.items():
-    logging.info('[%s]: %d/%.03f/%.03f/%.03f (len/avg/median/std)', 
-                 stream, len(data), mean(data), median(data), std(data))
+    logging.info('[%s]: %d/%.03f/%.03f/%.03f/%0.3f (len/avg/median/max/std)', 
+                 stream, len(data), mean(data), median(data), max(data),  
+                 std(data))
   return stats
 
 def compare_stats(reference, candidate):
+  reason = []
+
   # Implement thresholds
   # 1. Install if there are differences between the sets in the files
   new_streams = set(candidate.keys()) ^ set(reference.keys())
   if new_streams:
+    
     logging.info('Stream differences encountered: %r', new_streams)
     return 'Stream differences encountered: %r' % new_streams
-  # 2. Check each stream.  Install the candidate if candidate.median
-  # differs from reference.mean by more than 0.675 * reference.std.
-  # In a normal distribution 50% of samples are within 0.675
-  # sigma. For this to hold true the median must be somewhere in the
-  # -0.675s<median<0.675s range.  If the new median is outside this
-  # range then it is pretty clear that the distribution is skewed and
-  # a resort is needed.
+
+  # 2. Check each stream.  
   for stream in reference:
+    # 2.1 Install the candidate if candidate.median differs from
+    # reference.mean by more than 0.675 * reference.std.  In a normal
+    # distribution 50% of samples are within 0.675 sigma. For this to
+    # hold true the median must be somewhere in the
+    # -0.675s<median<0.675s range.  If the new median is outside this
+    # range then it is pretty clear that the distribution is skewed
+    # and a resort is needed.
     threshold = 0.675 * reference[stream].std()
     stream_variation = abs(median(candidate[stream])-
                            mean(reference[stream]))
     if stream_variation > threshold:
-      message = ('Median interval for stream %s exceeds threshold '
-                 '(%.03f/%.03f)' % (stream, stream_variation, threshold))
-      logging.info(message)
-      return message
+      reason.append(
+        'Median interval for stream %s exceeds threshold: (%.03f/%.03f)' % (
+          stream, stream_variation, threshold))
+
+    # 2.2 Install the candidate if the max candidate gap is more than
+    # twice the median reference gap.  This is mainly to catch if a
+    # certain title is being read out of order.
+    candidate_max = max(candidate[stream])
+    threshold = 2 * median(reference[stream])
+    if candidate_max > threshold:
+      reason.append(
+        'Maximum interval for stream %s exceeds twice median reference '
+        'interval (%.03f/%.03f)' % (candidate_max, threshold))
+
+    [logging.info(r) for r in reason]
+    return reason
 
 def main():
   logging.info('Processing reference file (%r)', ARGS.reference)
@@ -78,7 +96,8 @@ def main():
     install_candidate = compare_stats(reference, candidate)
     if install_candidate:
       if not ARGS.quiet:
-        print 'Threshold passed: %s' % install_candidate
+        for reason in install_candidate:
+          print 'Threshold passed: %s' % install_candidate
       print 'OK'
 
 if __name__ == '__main__':
