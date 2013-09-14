@@ -82,7 +82,7 @@ def compare_stats(reference, candidate):
     if candidate_max > threshold:
       reason.append(
         'Maximum interval for stream %s exceeds twice median reference '
-        'interval (%.03f/%.03f)' % (candidate_max, threshold))
+        'interval (%.03f/%.03f)' % (stream, candidate_max, threshold))
 
     [logging.info(r) for r in reason]
     return reason
