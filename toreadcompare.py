@@ -14,7 +14,7 @@ from numpy import array, mean, median, std
 
 args.add_argument('--reference', '-r', help='Path to reference toread file.')
 args.add_argument('--candidate', '-c', help='Path to candidate file.', 
-                  default=None)
+                  action='append')
 args.add_argument('--quiet', '-q', action='store_true',
                   help=('Do not print statistics.  Return will be '
                         'non-zero if thresholds are exceeded.'))
@@ -90,15 +90,16 @@ def compare_stats(reference, candidate):
 def main():
   logging.info('Processing reference file (%r)', ARGS.reference)
   reference = stream_stats(ReadingList(ARGS.reference).list_issues())
-  if ARGS.candidate:
-    logging.info('Processing candidate file (%r)', ARGS.candidate)
-    candidate = stream_stats(ReadingList(ARGS.candidate).list_issues())
-    install_candidate = compare_stats(reference, candidate)
+  for candidate in ARGS.candidate:
+    logging.info('Processing candidate file (%r)', candidate)
+    candidate_streams = stream_stats(ReadingList(candidate).list_issues())
+    install_candidate = compare_stats(reference, candidate_streams)
     if install_candidate:
       if not ARGS.quiet:
         for reason in install_candidate:
           print 'Threshold passed: %s' % install_candidate
       print 'OK'
+      break
 
 if __name__ == '__main__':
   args.parse_args()
